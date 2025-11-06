@@ -199,7 +199,7 @@ class Image extends ModuleWidget
         $media = $this->mediaFactory->getById($this->getMediaId());
         $filePath = $libraryLocation . $media->storedAs;
         $this->getLog()->debug('Media Returned: ' . $media->storedAs);
-        
+
         $width = intval($sanitizedParams->getDouble('width'));
         $height = intval($sanitizedParams->getDouble('height'));
 
@@ -227,10 +227,21 @@ class Image extends ModuleWidget
 
             // Preview (we output the file to the browser with image headers)
             try {
+                // Get the resize limit defaults
+                $resizeLimit = $this->getConfig()->getSetting('DEFAULT_RESIZE_LIMIT', 6000);
+
                 Img::configure(['driver' => 'gd']);
 
                 // Do we want a thumbnail
                 if ($isThumb) {
+                    // Set a safe threshold for thumbnail generation, as anything higher may cause memory leakage
+                    if (!$this->isValidImageDimensions($filePath, min($resizeLimit, 6000))) {
+                        $this->getLog()->error('Image: unable to process thumbnail for media ID ' .
+                            $media->mediaId . ' as the image is too large.');
+
+                        throw new InvalidArgumentException(__('Image is too large'));
+                    };
+
                     // Thumbnail
                     $thumbPath = $libraryLocation . 'tn_' . $media->storedAs;
                     $proportional = true;
@@ -270,8 +281,7 @@ class Image extends ModuleWidget
 
                     $fit = $proportional && $sanitizedParams->getCheckbox('fit') === 1;
 
-                    // only use upsize constraint, if we the requested dimensions are larger than resize limit.
-                    $resizeLimit = $this->getConfig()->getSetting('DEFAULT_RESIZE_LIMIT', 6000);
+                    // Only use upsize constraint if the requested dimensions are larger than resize limit.
                     $useUpsizeConstraint = max($width, $height) > $resizeLimit;
 
                     $this->getLog()->debug('Whole file: ' . $filePath
@@ -306,18 +316,13 @@ class Image extends ModuleWidget
                 $this->getLog()->debug($notReadableException->getTraceAsString());
                 $this->getLog()->error('Image not readable: ' . $notReadableException->getMessage());
 
-                // Output the thumbnail
-                $img = Img::make($this->getConfig()->uri('img/error.png', true));
+                $this->renderErrorThumbnail($width, $height);
+            } catch (\Exception $e) {
+                $this->getLog()->debug($e->getTraceAsString());
+                $this->getLog()->error('Thumbnail: unable to generate for mediaId ' . $media->mediaId .
+                    ' error: ' . $e->getMessage());
 
-                if ($width != 0 || $height != 0) {
-                    $img->resize($width, $height, function ($constraint) use ($proportional) {
-                        if ($proportional) {
-                            $constraint->aspectRatio();
-                        }
-                    });
-                }
-
-                echo $img->encode();
+                $this->renderErrorThumbnail($width, $height);
             }
 
             return $response;
@@ -357,5 +362,38 @@ class Image extends ModuleWidget
     public function hasThumbnail()
     {
         return true;
+    }
+
+    /**
+     * Validates the image dimensions
+     * @param $filePath
+     * @param $resizeLimit
+     * @return bool
+     */
+    private function isValidImageDimensions($filePath, $resizeLimit): bool
+    {
+        $imageInfo = getimagesize($filePath);
+
+        // Make sure none of the sides are greater than allowed
+        return ($resizeLimit > 0 && ($imageInfo[0] <= $resizeLimit && $imageInfo[1] <= $resizeLimit));
+    }
+
+    /**
+     * Renders error thumbnail
+     * @param $width
+     * @param $height
+     * @return void
+     */
+    private function renderErrorThumbnail($width, $height)
+    {
+        $img = Img::make($this->getConfig()->uri('img/error.png', true));
+
+        if ($width != 0 || $height != 0) {
+            $img->resize($width, $height, function ($constraint) {
+                $constraint->aspectRatio();
+            });
+        }
+
+        echo $img->encode();
     }
 }
