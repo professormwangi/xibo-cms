@@ -147,7 +147,7 @@ class DataSetData extends Base
         $filter = trim($filter, 'AND');
 
         // Work out the limits
-        $filter = $this->gridRenderFilter(['filter' => $request->getParam('filter', $filter)], $sanitizedParams);
+        $filter = $this->gridRenderFilter(['filter' => $filter], $sanitizedParams);
 
         try {
             $data = $dataSet->getData(
