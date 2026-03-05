@@ -13,6 +13,7 @@ use Xibo\Exception\NotFoundException;
 use Xibo\Factory\DataSetColumnFactory;
 use Xibo\Factory\DataSetColumnTypeFactory;
 use Xibo\Factory\DataTypeFactory;
+use Xibo\Helper\Sql;
 use Xibo\Service\LogServiceInterface;
 use Xibo\Storage\StorageServiceInterface;
 
@@ -243,6 +244,8 @@ class DataSetColumn implements \JsonSerializable
         if ($this->dataSetColumnTypeId == 2 && $this->formula != '' && substr($this->formula, 0, 1) !== '$') {
            try {
                $formula = str_replace('[DisplayId]', 0, $this->formula);
+               $formula = Sql::cleanup(htmlspecialchars_decode($formula, ENT_QUOTES));
+
                $this->getStore()->select('SELECT * FROM (SELECT `id`, ' . $formula . ' AS `' . $this->heading . '`  FROM `dataset_' . $this->dataSetId . '`) dataset WHERE 1 = 1 ', []);
            } catch (\Exception $e) {
                $this->getLog()->debug('Formula validation failed with following message ' . $e->getMessage());

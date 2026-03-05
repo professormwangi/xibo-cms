@@ -385,10 +385,11 @@ class DataSet implements \JsonSerializable
      * Get DataSet Data
      * @param array $filterBy
      * @param array $options
+     * @param array $extraParams Extra params to apply to the final query
      * @return array
      * @throws NotFoundException
      */
-    public function getData($filterBy = [], $options = [])
+    public function getData($filterBy = [], $options = [], $extraParams = [])
     {
         $start = $this->sanitizer->getInt('start', 0, $filterBy);
         $size = $this->sanitizer->getInt('size', 0, $filterBy);
@@ -401,8 +402,8 @@ class DataSet implements \JsonSerializable
             'requireTotal' => true
         ], $options);
 
-        // Params
-        $params = [];
+        // Params (start from extraParams supplied)
+        $params = $extraParams;
 
         // Sanitize the filter options provided
         // Get the Latitude and Longitude ( might be used in a formula )
@@ -443,7 +444,15 @@ class DataSet implements \JsonSerializable
                     continue;
                 }
 
-                $formula = Sql::cleanup(htmlspecialchars_decode($column->formula, ENT_QUOTES));
+                $count = 0;
+                $formula = Sql::cleanup(htmlspecialchars_decode($column->formula, ENT_QUOTES), $count);
+                if ($count > 0) {
+                    $this->getLog()->error(
+                        'Formula contains disallowed keywords on DataSet ID ' . $this->dataSetId
+                    );
+                    continue;
+                }
+
                 $formula = str_replace('[DisplayId]', $displayId, $formula);
 
                 $heading = str_replace('[DisplayGeoLocation]', $displayGeoLocation, $formula) . ' AS `' . $column->heading . '`';
@@ -1001,15 +1010,22 @@ class DataSet implements \JsonSerializable
         $this->lastDataEdit = time();
 
         // Build a query to insert
+        $params = [];
         $keys = array_keys($row);
-        $keys[] = 'id';
 
-        $values = array_values($row);
-        $values[] = NULL;
+        $sql = 'INSERT INTO `dataset_' . $this->dataSetId
+            . '` (`' . implode('`, `', $keys) . '`) VALUES (';
 
-        $sql = 'INSERT INTO `dataset_' . $this->dataSetId . '` (`' . implode('`, `', $keys) . '`) VALUES (' . implode(',', array_fill(0, count($values), '?')) . ')';
+        $i = 0;
+        foreach ($row as $value) {
+            $i++;
+            $sql .= ':value' . $i . ',';
+            $params['value' . $i] = $value;
+        }
+        $sql = rtrim($sql, ',');
+        $sql .= ')';
 
-        return $this->getStore()->insert($sql, $values);
+        return $this->getStore()->insert($sql, $params);
     }
 
     /**
