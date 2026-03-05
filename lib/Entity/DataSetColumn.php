@@ -26,6 +26,7 @@ use Respect\Validation\Validator as v;
 use Xibo\Factory\DataSetColumnFactory;
 use Xibo\Factory\DataSetColumnTypeFactory;
 use Xibo\Factory\DataTypeFactory;
+use Xibo\Helper\Sql;
 use Xibo\Service\LogServiceInterface;
 use Xibo\Storage\StorageServiceInterface;
 use Xibo\Support\Exception\InvalidArgumentException;
@@ -282,12 +283,7 @@ class DataSetColumn implements \JsonSerializable
         if ($this->dataSetColumnTypeId == 2 && $this->formula != '' && substr($this->formula, 0, 1) !== '$') {
             try {
                 $count = 0;
-                $formula = str_ireplace(
-                    $this->blackList,
-                    '',
-                    htmlspecialchars_decode($this->formula, ENT_QUOTES),
-                    $count
-                );
+                $formula = Sql::cleanup(htmlspecialchars_decode($this->formula, ENT_QUOTES), $count);
 
                 if ($count > 0) {
                     throw new InvalidArgumentException(__('Formula contains disallowed keywords.'));
