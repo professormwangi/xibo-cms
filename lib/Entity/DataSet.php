@@ -19,6 +19,7 @@ use Xibo\Factory\DataSetColumnFactory;
 use Xibo\Factory\DataSetFactory;
 use Xibo\Factory\DisplayFactory;
 use Xibo\Factory\PermissionFactory;
+use Xibo\Helper\Sql;
 use Xibo\Service\ConfigServiceInterface;
 use Xibo\Service\DateServiceInterface;
 use Xibo\Service\LogServiceInterface;
@@ -207,9 +208,6 @@ class DataSet implements \JsonSerializable
 
     private $countLast = 0;
 
-    /** @var array Blacklist for SQL */
-    private $blackList = array(';', 'INSERT', 'UPDATE', 'SELECT', 'DELETE', 'TRUNCATE', 'TABLE', 'FROM', 'WHERE');
-
     /** @var  SanitizerServiceInterface */
     private $sanitizer;
 
@@ -364,7 +362,7 @@ class DataSet implements \JsonSerializable
                 if ($column->heading == $heading) {
                     // Formula column?
                     if ($column->dataSetColumnTypeId == 2) {
-                        $select .= str_replace($this->blackList, '', htmlspecialchars_decode($column->formula, ENT_QUOTES)) . ' AS `' . $column->heading . '`,';
+                        $select .= Sql::cleanup(htmlspecialchars_decode($column->formula, ENT_QUOTES)) . ' AS `' . $column->heading . '`,';
                     }
                     else {
                         $select .= '`' . $column->heading . '`,';
@@ -445,7 +443,7 @@ class DataSet implements \JsonSerializable
                     continue;
                 }
 
-                $formula = str_ireplace($this->blackList, '', htmlspecialchars_decode($column->formula, ENT_QUOTES));
+                $formula = Sql::cleanup(htmlspecialchars_decode($column->formula, ENT_QUOTES));
                 $formula = str_replace('[DisplayId]', $displayId, $formula);
 
                 $heading = str_replace('[DisplayGeoLocation]', $displayGeoLocation, $formula) . ' AS `' . $column->heading . '`';
@@ -463,7 +461,7 @@ class DataSet implements \JsonSerializable
         if ($filter != '') {
             // Support display filtering.
             $filter = str_ireplace('[DisplayId]', $displayId, $filter);
-            $filter = str_replace($this->blackList, '', $filter);
+            $filter = Sql::cleanup($filter);
 
             $body .= ' AND ' . $filter;
         }

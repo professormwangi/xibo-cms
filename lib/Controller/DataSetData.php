@@ -123,7 +123,7 @@ class DataSetData extends Base
         $filter = trim($filter, 'AND');
 
         // Work out the limits
-        $filter = $this->gridRenderFilter(['filter' => $this->getSanitizer()->getParam('filter', $filter)]);
+        $filter = $this->gridRenderFilter(['filter' => $filter]);
 
         try {
             $data = $dataSet->getData([
