@@ -138,7 +138,7 @@ class WidgetSyncTask implements TaskInterface
                             $isDisplaySpecific = true;
                         } else if (str_contains($cacheKey, '%useDisplayLocation%')) {
                             // Decorate the module
-                            $module->decorateProperties($widget);
+                            $module->decorateProperties($widget, true);
 
                             if ($dataProvider->getProperty('useDisplayLocation') == 1) {
                                 $isDisplaySpecific = true;
