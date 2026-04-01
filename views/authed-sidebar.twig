@@ -66,7 +66,7 @@
             {% endif %}
 
             {% if currentUser.featureEnabled("displayprofile.view") %}
-                <li class="sidebar-list"><a href="{{ url_for("displayprofile.view") }}">{% trans "Display Settings" %}</a></li>
+                <li class="sidebar-list"><a href="{{ theme.rootUri() }}prototype/displays/settings">{% trans "Display Settings" %}</a></li>
             {% endif %}
 
             {% if currentUser.featureEnabled("playersoftware.view") %}

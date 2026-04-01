@@ -236,8 +236,11 @@ export const APP_ROUTES: AppRoute[] = [
       },
       {
         path: 'settings',
-        labelKey: 'Settings',
-        externalURL: '/displayprofile/view',
+        labelKey: 'Display Settings',
+        lazy: () =>
+          import('@/pages/Displays/DisplayProfile/DisplayProfile').then((m) => ({
+            Component: m.default,
+          })),
         feature: 'displayprofile.view',
       },
       {

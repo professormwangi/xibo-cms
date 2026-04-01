@@ -185,8 +185,8 @@ class DisplayProfile extends Base
                 $profile->excludeProperty('config');
             }
 
-            if ($this->isApi($request)) {
-                continue;
+            if ($this->isApi($request) || $this->isJson($request)) {
+                    continue;
             }
 
             $profile->includeProperty('buttons');
