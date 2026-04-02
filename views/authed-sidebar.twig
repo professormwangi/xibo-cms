@@ -89,7 +89,7 @@
             <li class="sidebar-title"><a>{% trans "Administration" %}</a></li>
 
             {% if userMenuViewable %}
-                <li class="sidebar-list"><a href="{{ url_for("user.view") }}">{% trans "Users" %}</a></li>
+                <li class="sidebar-list"><a href="{{ theme.rootUri() }}prototype/administration/users">{% trans "Users" %}</a></li>
             {% endif %}
 
             {% if currentUser.featureEnabled("usergroup.view") %}
