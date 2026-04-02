@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright (C) 2024 Xibo Signage Ltd
+ * Copyright (C) 2026 Xibo Signage Ltd
  *
  * Xibo - Digital Signage - https://xibosignage.com
  *
@@ -72,7 +72,8 @@ class UserFactory extends BaseFactory
      */
     public function create()
     {
-        return new User($this->getStore(),
+        return new User(
+            $this->getStore(),
             $this->getLog(),
             $this->getDispatcher(),
             $this->configService,
@@ -86,12 +87,16 @@ class UserFactory extends BaseFactory
     /**
      * Get User by ID
      * @param int $userId
+     * @param bool $disableUserCheck
      * @return User
      * @throws NotFoundException if the user cannot be found
      */
-    public function getById($userId)
+    public function getById(int $userId, bool $disableUserCheck = true)
     {
-        $users = $this->query(null, array('disableUserCheck' => 1, 'userId' => $userId));
+        $users = $this->query(null, [
+            'disableUserCheck' => $disableUserCheck ? 1 : 0,
+            'userId' => $userId
+        ]);
 
         if (count($users) <= 0) {
             throw new NotFoundException(__('User not found'));
@@ -140,7 +145,8 @@ class UserFactory extends BaseFactory
      * @return User
      * @throws NotFoundException if the user cannot be found
      */
-    public function getByEmail($email) {
+    public function getByEmail($email)
+    {
         $users = $this->query(null, array('disableUserCheck' => 1, 'email' => $email));
 
         if (count($users) <= 0) {
@@ -190,11 +196,11 @@ class UserFactory extends BaseFactory
 
     /**
      * Query for users
-     * @param array[mixed] $sortOrder
-     * @param array[mixed] $filterBy
+     * @param ?array $sortOrder
+     * @param array $filterBy
      * @return array[User]
      */
-    public function query($sortOrder = [], $filterBy = [])
+    public function query(?array $sortOrder = [], array $filterBy = [])
     {
         $entries = [];
         $parsedFilter = $this->getSanitizer($filterBy);
@@ -259,9 +265,8 @@ class UserFactory extends BaseFactory
             // Normal users can only see themselves
             if ($this->getUser()->userTypeId == 3) {
                 $params['userId'] = $this->getUser()->userId;
-            }
-            // Group admins can only see users from their groups.
-            else if ($this->getUser()->userTypeId == 2) {
+            } else if ($this->getUser()->userTypeId == 2) {
+                // Group admins can only see users from their groups.
                 $body .= '
                     AND user.userId IN (
                         SELECT `otherUserLinks`.userId
@@ -287,20 +292,35 @@ class UserFactory extends BaseFactory
         if (isset($params['userId'])) {
             $body .= ' AND user.userId = :userId ';
         } else if ($parsedFilter->getInt('userId') !== null) {
-            $body .= " AND user.userId = :userId ";
+            $body .= ' AND user.userId = :userId ';
             $params['userId'] = $parsedFilter->getInt('userId');
+        }
+
+        if ($parsedFilter->getString('keyword') != null) {
+            // Fulltext search
+            $body .= $this->buildSearchQuery(
+                $parsedFilter->getString('keyword'),
+                $params,
+                ['user.userName', 'user.firstName', 'user.lastName', 'user.email'],
+                ['user.userId'],
+            );
         }
 
         // Groups Provided
         $groups = $parsedFilter->getIntArray('groupIds');
 
         if ($groups !== null && count($groups) > 0) {
-            $body .= ' AND user.userId IN (SELECT userId FROM `lkusergroup` WHERE groupId IN (' . implode(',', $groups) . ')) ';
+            $body .= '
+                AND user.userId IN (
+                    SELECT userId FROM `lkusergroup`
+                     WHERE groupId IN (' . implode(',', $groups) . ')
+                ) 
+            ';
         }
 
         // User Type Provided
         if ($parsedFilter->getInt('userTypeId') !== null) {
-            $body .= " AND user.userTypeId = :userTypeId ";
+            $body .= ' AND user.userTypeId = :userTypeId ';
             $params['userTypeId'] = $parsedFilter->getInt('userTypeId');
         }
 
@@ -312,7 +332,7 @@ class UserFactory extends BaseFactory
 
         // User Name Provided
         if ($parsedFilter->getString('exactUserName') != null) {
-            $body .= " AND user.userName = :exactUserName ";
+            $body .= ' AND user.userName = :exactUserName ';
             $params['exactUserName'] = $parsedFilter->getString('exactUserName');
         }
 
@@ -332,25 +352,25 @@ class UserFactory extends BaseFactory
 
         // Email Provided
         if ($parsedFilter->getString('email') != null) {
-            $body .= " AND user.email = :email ";
+            $body .= ' AND user.email = :email ';
             $params['email'] = $parsedFilter->getString('email');
         }
 
         // First Name Provided
         if ($parsedFilter->getString('firstName') != null) {
-            $body .= " AND user.firstName LIKE :firstName ";
+            $body .= ' AND user.firstName LIKE :firstName ';
             $params['firstName'] = '%' . $parsedFilter->getString('firstName') . '%';
         }
 
         // Last Name Provided
         if ($parsedFilter->getString('lastName') != null) {
-            $body .= " AND user.lastName LIKE :lastName ";
+            $body .= ' AND user.lastName LIKE :lastName ';
             $params['lastName'] = '%' . $parsedFilter->getString('lastName') . '%';
         }
 
         // Retired users?
         if ($parsedFilter->getInt('retired') !== null) {
-            $body .= " AND user.retired = :retired ";
+            $body .= ' AND user.retired = :retired ';
             $params['retired'] = $parsedFilter->getInt('retired');
         }
 
@@ -405,9 +425,32 @@ class UserFactory extends BaseFactory
             }
         }
 
-        if (is_array($sortOrder) && (!in_array('`member`', $sortOrder) && !in_array('`member` DESC', $sortOrder))) {
-            $order .= ' ORDER BY ' . implode(',', $sortOrder);
-        }
+        // table sorting
+        $allowedColumns = [
+            'userId',
+            'userName',
+            'firstName',
+            'lastName',
+            'email',
+            'homeFolder',
+            'libraryQuota',
+            'lastAccessed',
+            'retired',
+            'twoFactorTypeId',
+            'phone',
+            'ref1',
+            'ref2',
+            'ref3',
+            'ref4',
+            'ref5'
+        ];
+        $sortOrder = $this->buildSortQuery(
+            $sortOrder,
+            $allowedColumns,
+            defaultSort: ['userId ASC']
+        );
+
+        $order = !empty($sortOrder) ? ' ORDER BY ' . implode(', ', $sortOrder) : '';
 
         $limit = '';
         // Paging
