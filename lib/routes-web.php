@@ -250,10 +250,6 @@ $app->group('', function(\Slim\Routing\RouteCollectorProxy $group) {
 //
 // user
 //
-$app->get('/user/view', ['\Xibo\Controller\User', 'displayPage'])
-    ->addMiddleware(new FeatureAuth($app->getContainer(), ['users.view']))
-    ->setName('user.view');
-
 $app->post('/user/welcome', ['\Xibo\Controller\User','userWelcomeSetUnseen'])->setName('welcome.wizard.unseen');
 $app->put('/user/welcome', ['\Xibo\Controller\User','userWelcomeSetSeen'])->setName('welcome.wizard.seen');
 
@@ -265,22 +261,6 @@ $app->get('/user/permissions/form/{entity}/{id}', ['\Xibo\Controller\User','perm
 $app->get('/user/permissions/multiple/form/{entity}', ['\Xibo\Controller\User','permissionsMultiForm'])->setName('user.permissions.multi.form');
 $app->get('/user/page/password', ['\Xibo\Controller\User','forceChangePasswordPage'])->setName('user.force.change.password.page');
 
-$app->get('/user/form/add', ['\Xibo\Controller\User','addForm'])
-    ->addMiddleware(new FeatureAuth($app->getContainer(), ['users.add']))
-    ->setName('user.add.form');
-
-$app->get('/user/form/onboarding', ['\Xibo\Controller\User','onboardingForm'])
-    ->addMiddleware(new FeatureAuth($app->getContainer(), ['users.add']))
-    ->setName('user.onboarding.form');
-
-$app->group('', function(\Slim\Routing\RouteCollectorProxy $group) {
-    $group->get('/user/form/edit/{id}', ['\Xibo\Controller\User', 'editForm'])->setName('user.edit.form');
-    $group->get('/user/form/delete/{id}', ['\Xibo\Controller\User', 'deleteForm'])->setName('user.delete.form');
-    $group->get('/user/form/membership/{id}', ['\Xibo\Controller\User', 'membershipForm'])->setName('user.membership.form');
-    $group->get('/user/form/setHomeFolder/{id}', ['\Xibo\Controller\User', 'setHomeFolderForm'])
-        ->addMiddleware(new FeatureAuth($group->getContainer(), ['folder.userHome']))
-        ->setName('user.homeFolder.form');
-})->addMiddleware(new FeatureAuth($app->getContainer(), ['users.modify']));
 
 $app->get('/user/form/homepages', ['\Xibo\Controller\User', 'homepages'])
     ->addMiddleware(new FeatureAuth($app->getContainer(), ['users.add', 'users.modify']))
