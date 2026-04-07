@@ -37,6 +37,7 @@ export interface DisplayProfile {
   name: string;
   type: DisplayProfileType;
   isDefault: number;
+  isCustom?: number;
   config?: DisplayProfileConfigItem[];
   configDefault?: DisplayProfileConfigDefaultItem[];
   commands?: DisplayProfileCommand[];

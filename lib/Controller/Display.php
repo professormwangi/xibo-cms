@@ -717,7 +717,7 @@ class Display extends Base
             // Current layout from cache
             $display->getCurrentLayoutId($this->pool, $this->layoutFactory);
 
-            if ($this->isApi($request)) {
+            if ($this->isApi($request) || $this->isJson($request)) {
                 $display->lastAccessed =
                     Carbon::createFromTimestamp($display->lastAccessed)->format(DateFormatHelper::getSystemFormat());
                 $display->auditingUntil = ($display->auditingUntil == 0)
