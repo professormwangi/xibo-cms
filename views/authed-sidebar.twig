@@ -93,7 +93,7 @@
             {% endif %}
 
             {% if currentUser.featureEnabled("usergroup.view") %}
-                <li class="sidebar-list"><a href="{{ url_for("group.view") }}">{% trans "User Groups" %}</a></li>
+                <li class="sidebar-list"><a href="{{ theme.rootUri() }}prototype/administration/usergroups">{% trans "User Groups" %}</a></li>
             {% endif %}
 
             {% if currentUser.isSuperAdmin() %}
