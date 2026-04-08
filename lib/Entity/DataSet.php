@@ -660,6 +660,15 @@ class DataSet implements \JsonSerializable
             $params['id'] = $sanitizer->getInt('id');
         }
 
+        // After the existing $filter block
+        $keyword = $filterBy['keyword'] ?? '';
+
+        if ($keyword !== '') {
+            $keyword = str_ireplace(Sql::DISALLOWED_KEYWORDS, '', $keyword);
+
+            $body .= ' AND ' . $keyword;
+        }
+
         // Ordering
         $order = '';
         if ($ordering != '') {

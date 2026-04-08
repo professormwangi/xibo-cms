@@ -21,7 +21,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { RowSelectionState } from '@tanstack/react-table';
-import { Plus, Search, Slash, Table } from 'lucide-react';
+import { Plus, Search, Slash, Table, Filter, FilterX } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -33,6 +33,7 @@ import { DatasetDataModals } from './components/DatasetDataModals';
 import { useDatasetData } from './hooks/useDatasetData';
 
 import Button from '@/components/ui/Button';
+import FilterInputs from '@/components/ui/FilterInputs';
 import TabNav from '@/components/ui/TabNav';
 import { DataTable } from '@/components/ui/table/DataTable';
 import { useFilteredTabs } from '@/hooks/useFilteredTabs';
@@ -61,7 +62,10 @@ export default function DatasetData() {
     columnVisibility,
     setColumnVisibility,
     globalFilter,
+    debouncedFilter,
     setGlobalFilter,
+    filterInputs,
+    setFilterInputs,
     isHydrated,
   } = useTableState<Record<string, string>>(`dataset_data_${datasetId}`, {
     pagination: { pageIndex: 0, pageSize: 10 },
@@ -73,6 +77,7 @@ export default function DatasetData() {
     folderId: null,
   });
 
+  const [openFilter, setOpenFilter] = useState(false);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [selectionCache, setSelectionCache] = useState<Record<string, DynamicRowData>>({});
   const [itemsToDelete, setItemsToDelete] = useState<DynamicRowData[]>([]);
@@ -90,9 +95,14 @@ export default function DatasetData() {
   const { data: columnsData, isFetching: isFetchingColumns } = useDatasetColumnsData({
     datasetId: datasetId!,
     pagination: { pageIndex: 0, pageSize: 100 },
+    filter: '',
     sorting: [],
     enabled: isHydrated,
   });
+
+  const activeColumnFilters = Object.fromEntries(
+    Object.entries(filterInputs).filter(([, v]) => v !== ''),
+  );
 
   const {
     data: queryData,
@@ -102,13 +112,48 @@ export default function DatasetData() {
   } = useDatasetData({
     datasetId: datasetId!,
     pagination,
+    filter: debouncedFilter,
     sorting,
+    columnFilters: Object.keys(activeColumnFilters).length > 0 ? activeColumnFilters : undefined,
     enabled: isHydrated && !!columnsData,
   });
 
   const columnsSchema = columnsData?.rows || [];
   const rowData = queryData?.rows || [];
   const pageCount = Math.ceil((queryData?.totalCount || 0) / pagination.pageSize);
+
+  const filterOptions = columnsSchema
+    .filter((col) => col.showFilter)
+    .sort((a, b) => (a.columnOrder || 0) - (b.columnOrder || 0))
+    .map((col) => {
+      const listOptions = col.listContent
+        ? col.listContent
+            .split(',')
+            .map((v) => v.trim())
+            .filter(Boolean)
+        : [];
+
+      if (listOptions.length > 0) {
+        return {
+          label: col.heading,
+          name: col.heading,
+          type: 'select' as const,
+          options: listOptions.map((opt) => ({ label: opt, value: opt })),
+        };
+      }
+
+      return {
+        label: col.heading,
+        name: col.heading,
+        type: 'text' as const,
+        placeholder: t('Filter by {{heading}}', { heading: col.heading }),
+      };
+    });
+
+  const handleResetFilters = () => {
+    setFilterInputs({});
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  };
   const error = isError && queryError instanceof Error ? queryError.message : '';
   const isLoading = !isHydrated || isFetchingColumns;
 
@@ -264,7 +309,7 @@ export default function DatasetData() {
             <Button
               variant="secondary"
               className="font-semibold"
-              onClick={() => navigate(`/library/datasets/${datasetId}/columns`)}
+              onClick={() => navigate(`/library/datasets/${datasetId}/column`)}
               leftIcon={Table}
             >
               {t('View Columns')}
@@ -305,8 +350,29 @@ export default function DatasetData() {
                 className="py-2 px-3 pl-10 block h-11.25 bg-gray-100 rounded-lg w-full border-gray-200 disabled:opacity-50"
               />
             </div>
+            {filterOptions.length > 0 && (
+              <Button
+                leftIcon={!openFilter ? Filter : FilterX}
+                variant="secondary"
+                onClick={() => setOpenFilter((prev) => !prev)}
+                removeTextOnMobile
+              >
+                {t('Filters')}
+              </Button>
+            )}
           </div>
         </div>
+
+        <FilterInputs
+          onChange={(name, value) => {
+            setFilterInputs((prev) => ({ ...prev, [name]: value as string }));
+            setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+          }}
+          isOpen={openFilter}
+          values={filterInputs}
+          options={filterOptions}
+          onReset={handleResetFilters}
+        />
 
         {error && (
           <div
@@ -329,7 +395,7 @@ export default function DatasetData() {
               </p>
               <Button
                 variant="primary"
-                onClick={() => navigate(`/library/datasets/${datasetId}/columns`)}
+                onClick={() => navigate(`/library/datasets/${datasetId}/column`)}
               >
                 {t('Configure Columns')}
               </Button>
