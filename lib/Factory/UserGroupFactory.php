@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright (C) 2025 Xibo Signage Ltd
+ * Copyright (C) 2026 Xibo Signage Ltd
  *
  * Xibo - Digital Signage - https://xibosignage.com
  *
@@ -45,7 +45,7 @@ class UserGroupFactory extends BaseFactory
      * @param User $user
      * @param UserFactory $userFactory
      */
-    public function __construct($user, $userFactory)
+    public function __construct(User $user, UserFactory $userFactory)
     {
         $this->setAclDependencies($user, $userFactory);
     }
@@ -56,7 +56,12 @@ class UserGroupFactory extends BaseFactory
      */
     public function createEmpty()
     {
-        return new UserGroup($this->getStore(), $this->getLog(), $this->getDispatcher(), $this, $this->getUserFactory());
+        return new UserGroup(
+            $this->getStore(),
+            $this->getLog(),
+            $this->getDispatcher(),
+            $this, $this->getUserFactory()
+        );
     }
 
     /**
@@ -77,15 +82,21 @@ class UserGroupFactory extends BaseFactory
     /**
      * Get by Group Id
      * @param int $groupId
+     * @param bool $isDisableUserCheck
      * @return UserGroup
      * @throws NotFoundException
      */
-    public function getById($groupId)
+    public function getById(int $groupId, bool $isDisableUserCheck = true): UserGroup
     {
-        $groups = $this->query(null, ['disableUserCheck' => 1, 'groupId' => $groupId, 'isUserSpecific' => -1]);
+        $groups = $this->query(null, [
+            'disableUserCheck' => $isDisableUserCheck ? 1 : 0,
+            'groupId' => $groupId,
+            'isUserSpecific' => -1
+        ]);
 
-        if (count($groups) <= 0)
+        if (count($groups) <= 0) {
             throw new NotFoundException(__('Group not found'));
+        }
 
         return $groups[0];
     }
@@ -97,12 +108,17 @@ class UserGroupFactory extends BaseFactory
      * @return UserGroup
      * @throws NotFoundException
      */
-    public function getByName($group, $isUserSpecific = 0)
+    public function getByName(string $group, int $isUserSpecific = 0): UserGroup
     {
-        $groups = $this->query(null, ['disableUserCheck' => 1, 'exactGroup' => $group, 'isUserSpecific' => $isUserSpecific]);
+        $groups = $this->query(null, [
+            'disableUserCheck' => 1,
+            'exactGroup' => $group,
+            'isUserSpecific' => $isUserSpecific
+        ]);
 
-        if (count($groups) <= 0)
+        if (count($groups) <= 0) {
             throw new NotFoundException(__('Group not found'));
+        }
 
         return $groups[0];
     }
@@ -112,12 +128,13 @@ class UserGroupFactory extends BaseFactory
      * @return UserGroup
      * @throws NotFoundException
      */
-    public function getEveryone()
+    public function getEveryone(): UserGroup
     {
         $groups = $this->query(null, ['disableUserCheck' => 1, 'isEveryone' => 1]);
 
-        if (count($groups) <= 0)
+        if (count($groups) <= 0) {
             throw new NotFoundException(__('Group not found'));
+        }
 
         return $groups[0];
     }
@@ -126,9 +143,14 @@ class UserGroupFactory extends BaseFactory
      * Get isSystemNotification Group
      * @return UserGroup[]
      */
-    public function getSystemNotificationGroups()
+    public function getSystemNotificationGroups(): array
     {
-        return $this->query(null, ['disableUserCheck' => 1, 'isSystemNotification' => 1, 'isUserSpecific' => -1, 'checkRetired' => 1]);
+        return $this->query(null, [
+            'disableUserCheck' => 1,
+            'isSystemNotification' => 1,
+            'isUserSpecific' => -1,
+            'checkRetired' => 1
+        ]);
     }
 
     /**
@@ -136,7 +158,7 @@ class UserGroupFactory extends BaseFactory
      * @param int|null $displayGroupId Optionally provide a displayGroupId to restrict to view permissions.
      * @return UserGroup[]
      */
-    public function getDisplayNotificationGroups($displayGroupId = null)
+    public function getDisplayNotificationGroups(?int $displayGroupId = null): array
     {
         return $this->query(null, [
             'disableUserCheck' => 1,
@@ -152,9 +174,13 @@ class UserGroupFactory extends BaseFactory
      * @param int $userId
      * @return \Xibo\Entity\UserGroup[]
      */
-    public function getByUserId($userId)
+    public function getByUserId(int $userId): array
     {
-        return $this->query(null, ['disableUserCheck' => 1, 'userId' => $userId, 'isUserSpecific' => 0]);
+        return $this->query(null, [
+            'disableUserCheck' => 1,
+            'userId' => $userId,
+            'isUserSpecific' => 0
+        ]);
     }
 
     /**
@@ -162,7 +188,7 @@ class UserGroupFactory extends BaseFactory
      * @param int $notificationId
      * @return array[UserGroup]
      */
-    public function getByNotificationId($notificationId)
+    public function getByNotificationId(int $notificationId): array
     {
         return $this->query(
             null,
@@ -175,7 +201,7 @@ class UserGroupFactory extends BaseFactory
      * @param int $displayGroupId
      * @return UserGroup[]
      */
-    public function getByDisplayGroupId($displayGroupId)
+    public function getByDisplayGroupId(int $displayGroupId): array
     {
         return $this->query(null, ['disableUserCheck' => 1, 'displayGroupId' => $displayGroupId]);
     }
@@ -200,19 +226,15 @@ class UserGroupFactory extends BaseFactory
     }
 
     /**
-     * @param array $sortOrder
+     * @param ?array $sortOrder
      * @param array $filterBy
      * @return UserGroup[]
      */
-    public function query($sortOrder = null, $filterBy = [])
+    public function query(?array $sortOrder = [], array $filterBy = []): array
     {
         $parsedFilter = $this->getSanitizer($filterBy);
         $entries = [];
         $params = [];
-
-        if ($sortOrder === null) {
-            $sortOrder = ['`group`'];
-        }
 
         $select = '
         SELECT 	`group`.group,
@@ -276,6 +298,16 @@ class UserGroupFactory extends BaseFactory
         if ($parsedFilter->getInt('groupId') !== null) {
             $body .= ' AND `group`.groupId = :groupId ';
             $params['groupId'] = $parsedFilter->getInt('groupId');
+        }
+
+        if ($parsedFilter->getString('keyword') != null) {
+            // Fulltext search
+            $body .= $this->buildSearchQuery(
+                $parsedFilter->getString('keyword'),
+                $params,
+                ['group.group', 'group.description'],
+                ['group.groupId'],
+            );
         }
 
         // Filter by Group Name
@@ -354,48 +386,37 @@ class UserGroupFactory extends BaseFactory
             $params['displayGroupId'] = $parsedFilter->getInt('displayGroupId');
         }
 
-        if (in_array('`member`', $sortOrder) || in_array('`member` DESC', $sortOrder)) {
-            $members = [];
-
-            // DisplayGroup members with provided Display Group ID
-            if ($parsedFilter->getInt('userIdMember') !== null) {
-                foreach ($this->getStore()->select($select . $body, $params) as $row) {
-                    $userGroupId = $this->getSanitizer($row)->getInt('groupId');
-
-                    if ($this->getStore()->exists(
-                        'SELECT groupId FROM `lkusergroup` WHERE userId = :userId AND groupId = :groupId ',
-                        [
-                            'groupId' => $userGroupId,
-                            'userId' => $parsedFilter->getInt('userIdMember')
-                        ]
-                    )) {
-                        $members[] = $userGroupId;
-                    }
-                }
-            }
-        }
-
         // Sorting?
         $order = '';
 
-        if (isset($members) && $members != []) {
-            $sqlOrderMembers = 'ORDER BY FIELD(group.groupId,' . implode(',', $members) . ')';
-
-            foreach ($sortOrder as $sort) {
-                if ($sort == '`member`') {
-                    $order .= $sqlOrderMembers;
-                    continue;
-                }
-
-                if ($sort == '`member` DESC') {
-                    $order .= $sqlOrderMembers . ' DESC';
-                    continue;
-                }
-            }
+        if ($parsedFilter->getInt('userIdMember') !== null && !empty($sortOrder)) {
+            $order = $this->orderByMembersAssignment($parsedFilter->getInt('userIdMember'), $sortOrder);
         }
 
-        if (is_array($sortOrder) && (!in_array('`member`', $sortOrder) && !in_array('`member` DESC', $sortOrder))) {
-            $order .= ' ORDER BY ' . implode(',', $sortOrder);
+        if (empty($order)) {
+            // table sorting
+            $allowedColumns = [
+                'groupId',
+                'group',
+                'description',
+                'libraryQuota',
+                'isSystemNotification',
+                'isDisplayNotification',
+                'isDataSetNotification',
+                'isLayoutNotification',
+                'isLibraryNotification',
+                'isReportNotification',
+                'isScheduleNotification',
+                'isCustomNotification',
+                'isShownForAddUser',
+            ];
+            $sortOrder = $this->buildSortQuery(
+                $sortOrder,
+                $allowedColumns,
+                defaultSort: ['groupId ASC']
+            );
+
+            $order = !empty($sortOrder) ? ' ORDER BY ' . implode(', ', $sortOrder) : '';
         }
 
         $limit = '';
@@ -1066,5 +1087,33 @@ class UserGroupFactory extends BaseFactory
             );
         }
         return $this;
+    }
+
+    /**
+     * @param int $userIdMember
+     * @param array $sortOrder
+     * @return string
+     */
+    public function orderByMembersAssignment(int $userIdMember, array $sortOrder): string
+    {
+        $order = '';
+
+        if (in_array('`member`', $sortOrder) || in_array('`member` DESC', $sortOrder)) {
+            // UserGroup members with provided User ID
+            $members = array_column(
+                $this->getStore()->select(
+                    'SELECT `groupId` FROM `lkusergroup` WHERE userId = :userId',
+                    ['userId' => $userIdMember]
+                ),
+                'groupId'
+            );
+
+            if (!empty($members)) {
+                $dir = in_array('`member` DESC', $sortOrder) ? ' DESC' : '';
+                $order = 'ORDER BY FIELD(`group`.groupId,' . implode(',', $members) . ')' . $dir;
+            }
+        }
+
+        return $order;
     }
 }
