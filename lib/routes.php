@@ -529,7 +529,7 @@ $app->get('/playlistdashboard', ['\Xibo\Controller\PlaylistDashboard', 'displayP
  * User Group
  */
 $app->get('/group', ['\Xibo\Controller\UserGroup','grid'])->setName('group.search');
-
+$app->get('/group/{id}', ['\Xibo\Controller\UserGroup','searchById'])->setName('group.search.id');
 $app->post('/group', ['\Xibo\Controller\UserGroup','add'])->setName('group.add');
 
 $app->group('', function (RouteCollectorProxy $group) {
@@ -537,8 +537,14 @@ $app->group('', function (RouteCollectorProxy $group) {
     $group->delete('/group/{id}', ['\Xibo\Controller\UserGroup','delete'])->setName('group.delete');
     $group->post('/group/{id}/copy', ['\Xibo\Controller\UserGroup','copy'])->setName('group.copy');
 
-    $group->post('/group/members/assign/{id}', ['\Xibo\Controller\UserGroup','assignUser'])->setName('group.members.assign');
-    $group->post('/group/members/unassign/{id}', ['\Xibo\Controller\UserGroup','unassignUser'])->setName('group.members.unassign');
+    $group->post(
+        '/group/members/assign/{id}',
+        ['\Xibo\Controller\UserGroup','assignUser']
+    )->setName('group.members.assign');
+    $group->post(
+        '/group/members/unassign/{id}',
+        ['\Xibo\Controller\UserGroup','unassignUser']
+    )->setName('group.members.unassign');
 
     $group->post('/group/acl/{id}', ['\Xibo\Controller\UserGroup','acl'])->setName('group.acl');
 })->addMiddleware(new \Xibo\Middleware\FeatureAuth($app->getContainer(), ['usergroup.modify']));

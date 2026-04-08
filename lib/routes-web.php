@@ -408,23 +408,6 @@ $app->group('', function(\Slim\Routing\RouteCollectorProxy $group) {
 })->addMiddleware(new FeatureAuth($app->getContainer(), ['displayprofile.modify']));
 
 //
-// group
-//
-$app->get('/group/view', ['\Xibo\Controller\UserGroup','displayPage'])
-    ->addMiddleware(new FeatureAuth($app->getContainer(), ['usergroup.view']))
-    ->setName('group.view');
-
-$app->get('/group/form/add', ['\Xibo\Controller\UserGroup','addForm'])->setName('group.add.form');
-
-$app->group('', function(\Slim\Routing\RouteCollectorProxy $group) {
-    $group->get('/group/form/edit/{id}', ['\Xibo\Controller\UserGroup','editForm'])->setName('group.edit.form');
-    $group->get('/group/form/delete/{id}', ['\Xibo\Controller\UserGroup','deleteForm'])->setName('group.delete.form');
-    $group->get('/group/form/copy/{id}', ['\Xibo\Controller\UserGroup','copyForm'])->setName('group.copy.form');
-    $group->get('/group/form/acl/{id}/[{userId}]', ['\Xibo\Controller\UserGroup','aclForm'])->setName('group.acl.form');
-    $group->get('/group/form/members/{id}', ['\Xibo\Controller\UserGroup','membersForm'])->setName('group.members.form');
-})->addMiddleware(new FeatureAuth($app->getContainer(), ['usergroup.modify']));
-
-//
 // admin
 //
 $app->get('/admin/view', ['\Xibo\Controller\Settings','displayPage'])
