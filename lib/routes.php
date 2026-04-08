@@ -374,10 +374,12 @@ $app->post('/displaygroup/{id}/action/command', ['\Xibo\Controller\DisplayGroup'
  * Display Profile
  */
 $app->get('/displayprofile', ['\Xibo\Controller\DisplayProfile','grid'])->setName('displayProfile.search');
+$app->get('/displayprofile/{id}', ['\Xibo\Controller\DisplayProfile','searchById'])->setName('displayProfile.search.id');
 
-$app->post('/displayprofile', ['\Xibo\Controller\DisplayProfile','add'])
-    ->addMiddleware(new \Xibo\Middleware\FeatureAuth($app->getContainer(), ['displayprofile.add']))
-    ->setName('displayProfile.add');
+$app->group('', function (RouteCollectorProxy $group) {
+    $group->post('/displayprofile', ['\Xibo\Controller\DisplayProfile','add'])->setName('displayProfile.add');
+    $group->get('/displayprofile/types', ['\Xibo\Controller\DisplayProfile','getDisplayProfileTypes'])->setName('displayProfile.types');
+})->addMiddleware(new \Xibo\Middleware\FeatureAuth($app->getContainer(), ['displayprofile.add']));
 
 $app->group('', function (RouteCollectorProxy $group) {
     $group->put('/displayprofile/{id}', ['\Xibo\Controller\DisplayProfile','edit'])->setName('displayProfile.edit');

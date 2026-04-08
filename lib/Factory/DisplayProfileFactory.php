@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright (C) 2025 Xibo Signage Ltd
+ * Copyright (C) 2026 Xibo Signage Ltd
  *
  * Xibo - Digital Signage - https://xibosignage.com
  *
@@ -76,12 +76,16 @@ class DisplayProfileFactory extends BaseFactory
 
     /**
      * @param int $displayProfileId
+     * @param bool $disableUserCheck
      * @return DisplayProfile
      * @throws NotFoundException
      */
-    public function getById($displayProfileId)
+    public function getById(int $displayProfileId, bool $disableUserCheck = true): DisplayProfile
     {
-        $profiles = $this->query(null, ['disableUserCheck' => 1, 'displayProfileId' => $displayProfileId]);
+        $profiles = $this->query(null, [
+            'disableUserCheck' => $disableUserCheck,
+            'displayProfileId' => $displayProfileId
+        ]);
 
         if (count($profiles) <= 0) {
             throw new NotFoundException();
@@ -456,11 +460,6 @@ class DisplayProfileFactory extends BaseFactory
         $profiles = [];
         $parsedFilter = $this->getSanitizer($filterBy);
 
-        if ($sortOrder === null) {
-            $sortOrder = ['name'];
-        }
-
-
         $params = [];
         $select = 'SELECT displayProfileId, name, type, config, isDefault, userId, isCustom ';
 
@@ -513,11 +512,31 @@ class DisplayProfileFactory extends BaseFactory
             $params['userId'] = $parsedFilter->getInt('userId');
         }
 
-        // Sorting?
-        $order = '';
-        if (is_array($sortOrder)) {
-            $order .= 'ORDER BY ' . implode(',', $sortOrder);
+        if ($parsedFilter->getString('keyword') != null) {
+            // Fulltext search
+            $body .= $this->buildSearchQuery(
+                $parsedFilter->getString('keyword'),
+                $params,
+                ['displayprofile.name', 'displayprofile.type'],
+                ['displayprofile.displayProfileId']
+            );
         }
+
+        // Sorting
+        $allowedColumns = [
+            'displayProfileId',
+            'name',
+            'type',
+            'isDefault',
+        ];
+
+        $sortOrder = $this->buildSortQuery(
+            $sortOrder,
+            $allowedColumns,
+            defaultSort: ['displayProfileId ASC']
+        );
+
+        $order = !empty($sortOrder) ? ' ORDER BY ' . implode(', ', $sortOrder) : '';
 
         $limit = '';
         // Paging

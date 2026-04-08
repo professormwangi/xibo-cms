@@ -413,18 +413,8 @@ $app->get('/displaygroup/form/{id}/selectfolder', ['\Xibo\Controller\DisplayGrou
 //
 // displayprofile
 //
-$app->get('/displayprofile/view', ['\Xibo\Controller\DisplayProfile','displayPage'])
-    ->addMiddleware(new FeatureAuth($app->getContainer(), ['displayprofile.view']))
-    ->setName('displayprofile.view');
-
-$app->get('/displayprofile/form/add', ['\Xibo\Controller\DisplayProfile','addForm'])
-    ->addMiddleware(new FeatureAuth($app->getContainer(), ['displayprofile.add']))
-    ->setName('displayProfile.add.form');
-
 $app->group('', function(\Slim\Routing\RouteCollectorProxy $group) {
     $group->get('/displayprofile/form/edit/{id}', ['\Xibo\Controller\DisplayProfile','editForm'])->setName('displayProfile.edit.form');
-    $group->get('/displayprofile/form/delete/{id}', ['\Xibo\Controller\DisplayProfile','deleteForm'])->setName('displayProfile.delete.form');
-    $group->get('/displayprofile/form/copy/{id}', ['\Xibo\Controller\DisplayProfile','copyForm'])->setName('displayProfile.copy.form');
 })->addMiddleware(new FeatureAuth($app->getContainer(), ['displayprofile.modify']));
 
 //
