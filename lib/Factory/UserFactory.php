@@ -70,7 +70,7 @@ class UserFactory extends BaseFactory
      * Create a user
      * @return User
      */
-    public function create()
+    public function create(): User
     {
         return new User(
             $this->getStore(),
@@ -91,7 +91,7 @@ class UserFactory extends BaseFactory
      * @return User
      * @throws NotFoundException if the user cannot be found
      */
-    public function getById(int $userId, bool $disableUserCheck = true)
+    public function getById(int $userId, bool $disableUserCheck = true): User
     {
         $users = $this->query(null, [
             'disableUserCheck' => $disableUserCheck ? 1 : 0,
@@ -108,10 +108,10 @@ class UserFactory extends BaseFactory
     /**
      * Load by client Id
      * @param string $clientId
-     * @return mixed
+     * @return User
      * @throws NotFoundException
      */
-    public function loadByClientId($clientId)
+    public function loadByClientId(string $clientId): User
     {
         $users = $this->query(null, array('disableUserCheck' => 1, 'clientId' => $clientId));
 
@@ -128,7 +128,7 @@ class UserFactory extends BaseFactory
      * @return User
      * @throws NotFoundException if the user cannot be found
      */
-    public function getByName($userName)
+    public function getByName(string $userName): User
     {
         $users = $this->query(null, array('disableUserCheck' => 1, 'exactUserName' => $userName));
 
@@ -145,7 +145,7 @@ class UserFactory extends BaseFactory
      * @return User
      * @throws NotFoundException if the user cannot be found
      */
-    public function getByEmail($email)
+    public function getByEmail(string $email): User
     {
         $users = $this->query(null, array('disableUserCheck' => 1, 'email' => $email));
 
@@ -161,7 +161,7 @@ class UserFactory extends BaseFactory
      * @param int $groupId
      * @return array[User]
      */
-    public function getByGroupId($groupId)
+    public function getByGroupId($groupId): array
     {
         return $this->query(null, array('disableUserCheck' => 1, 'groupIds' => [$groupId]));
     }
@@ -170,7 +170,7 @@ class UserFactory extends BaseFactory
      * Get Super Admins
      * @return User[]
      */
-    public function getSuperAdmins()
+    public function getSuperAdmins(): array
     {
         return $this->query(null, array('disableUserCheck' => 1, 'userTypeId' => 1));
     }
@@ -180,7 +180,7 @@ class UserFactory extends BaseFactory
      * @return User
      * @throws NotFoundException
      */
-    public function getSystemUser()
+    public function getSystemUser(): User
     {
         return $this->getById($this->configService->getSetting('SYSTEM_USER'));
     }
@@ -189,7 +189,7 @@ class UserFactory extends BaseFactory
      * @param int $homeFolderId
      * @return User[]
      */
-    public function getByHomeFolderId(int $homeFolderId)
+    public function getByHomeFolderId(int $homeFolderId): array
     {
         return $this->query(null, ['homeFolderId' => $homeFolderId]);
     }
@@ -200,15 +200,10 @@ class UserFactory extends BaseFactory
      * @param array $filterBy
      * @return array[User]
      */
-    public function query(?array $sortOrder = [], array $filterBy = [])
+    public function query(?array $sortOrder = [], array $filterBy = []): array
     {
         $entries = [];
         $parsedFilter = $this->getSanitizer($filterBy);
-
-        // Default sort order
-        if ($sortOrder === null || count($sortOrder) <= 0) {
-            $sortOrder = ['userName'];
-        }
 
         $params = [];
         $select = '
@@ -385,72 +380,41 @@ class UserFactory extends BaseFactory
             $params['homeFolderId'] = $parsedFilter->getInt('homeFolderId');
         }
 
-        if (in_array('`member`', $sortOrder) || in_array('`member` DESC', $sortOrder)) {
-            $members = [];
-
-            // DisplayGroup members with provided Display Group ID
-            if ($parsedFilter->getInt('userGroupIdMembers') !== null) {
-                foreach ($this->getStore()->select($select . $body, $params) as $row) {
-                    $userId = $this->getSanitizer($row)->getInt('userId');
-
-                    if ($this->getStore()->exists(
-                        'SELECT userId FROM `lkusergroup` WHERE groupId = :groupId AND userId = :userId ',
-                        [
-                            'userId' => $userId,
-                            'groupId' => $parsedFilter->getInt('userGroupIdMembers')
-                        ]
-                    )) {
-                        $members[] = $userId;
-                    }
-                }
-            }
-        }
-
         // Sorting?
         $order = '';
 
-        if (isset($members) && $members != []) {
-            $sqlOrderMembers = 'ORDER BY FIELD(user.userId,' . implode(',', $members) . ')';
-
-            foreach ($sortOrder as $sort) {
-                if ($sort == '`member`') {
-                    $order .= $sqlOrderMembers;
-                    continue;
-                }
-
-                if ($sort == '`member` DESC') {
-                    $order .= $sqlOrderMembers . ' DESC';
-                    continue;
-                }
-            }
+        if ($parsedFilter->getInt('userGroupIdMembers') !== null && !empty($sortOrder)) {
+            $order = $this->orderByMembersAssignment($parsedFilter->getInt('userGroupIdMembers'), $sortOrder);
         }
 
-        // table sorting
-        $allowedColumns = [
-            'userId',
-            'userName',
-            'firstName',
-            'lastName',
-            'email',
-            'homeFolder',
-            'libraryQuota',
-            'lastAccessed',
-            'retired',
-            'twoFactorTypeId',
-            'phone',
-            'ref1',
-            'ref2',
-            'ref3',
-            'ref4',
-            'ref5'
-        ];
-        $sortOrder = $this->buildSortQuery(
-            $sortOrder,
-            $allowedColumns,
-            defaultSort: ['userId ASC']
-        );
+        if (empty($order)) {
+            // table sorting
+            $allowedColumns = [
+                'userId',
+                'userName',
+                'firstName',
+                'lastName',
+                'email',
+                'homeFolder',
+                'libraryQuota',
+                'lastAccessed',
+                'retired',
+                'twoFactorTypeId',
+                'phone',
+                'ref1',
+                'ref2',
+                'ref3',
+                'ref4',
+                'ref5',
+            ];
+            $sortOrder = $this->buildSortQuery(
+                $sortOrder,
+                $allowedColumns,
+                defaultSort: ['userId ASC']
+            );
 
-        $order = !empty($sortOrder) ? ' ORDER BY ' . implode(', ', $sortOrder) : '';
+            $order = !empty($sortOrder) ? ' ORDER BY ' . implode(', ', $sortOrder) : '';
+        }
 
         $limit = '';
         // Paging
@@ -528,5 +492,34 @@ class UserFactory extends BaseFactory
         // Run the query
         $results = $this->getStore()->select($sql, $params);
         return intval($results[0]['countOf'] ?? 0);
+    }
+
+
+    /**
+     * @param int $userGroupId
+     * @param array $sortOrder
+     * @return string
+     */
+    public function orderByMembersAssignment(int $userGroupId, array $sortOrder): string
+    {
+        $order = '';
+
+        if (in_array('`member`', $sortOrder) || in_array('`member` DESC', $sortOrder)) {
+            // User members of provided User Group
+            $members = array_column(
+                $this->getStore()->select(
+                    'SELECT `userId` FROM `lkusergroup` WHERE groupId = :groupId',
+                    ['groupId' => $userGroupId]
+                ),
+                'userId'
+            );
+
+            if (!empty($members)) {
+                $dir = in_array('`member` DESC', $sortOrder) ? ' DESC' : '';
+                $order = 'ORDER BY FIELD(`user`.userId,' . implode(',', $members) . ')' . $dir;
+            }
+        }
+
+        return $order;
     }
 }

@@ -2448,4 +2448,21 @@ class User extends Base
 
         return $this->render($request, $response);
     }
+
+    /**
+     * @param Request $request
+     * @param Response $response
+     * @return Response|ResponseInterface
+     * @throws NotFoundException
+     */
+    public function getUserTypes(Request $request, Response $response): Response|ResponseInterface
+    {
+        $userTypes = ($this->getUser()->isSuperAdmin())
+            ? $this->userTypeFactory->getAllRoles()
+            : $this->userTypeFactory->getNonAdminRoles();
+
+        return $response
+            ->withStatus(200)
+            ->withJson($userTypes);
+    }
 }
