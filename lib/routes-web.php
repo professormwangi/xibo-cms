@@ -620,15 +620,6 @@ $app->group('', function(\Slim\Routing\RouteCollectorProxy $group) {
     $group->get('/playersoftware/form/delete/{id}', ['\Xibo\Controller\PlayerSoftware','deleteForm'])->setName('playersoftware.delete.form');
 })->addMiddleware(new FeatureAuth($app->getContainer(), ['playersoftware.view']));
 
-// Tags
-$app->group('', function(\Slim\Routing\RouteCollectorProxy $group) {
-    $group->get('/tag/view', ['\Xibo\Controller\Tag','displayPage'])->setName('tag.view');
-    $group->get('/tag/form/add', ['\Xibo\Controller\Tag','addForm'])->setName('tag.add.form');
-    $group->get('/tag/form/edit/{id}', ['\Xibo\Controller\Tag','editForm'])->setName('tag.edit.form');
-    $group->get('/tag/form/delete/{id}', ['\Xibo\Controller\Tag','deleteForm'])->setName('tag.delete.form');
-    $group->get('/tag/form/usage/{id}', ['\Xibo\Controller\Tag', 'usageForm'])->setName('tag.usage.form');
-})->addMiddleware(new FeatureAuth($app->getContainer(), ['tag.view']));
-
 // Menu Boards
 $app->group('', function (\Slim\Routing\RouteCollectorProxy $group) {
     $group->get('/menuboard/view', ['\Xibo\Controller\MenuBoard','displayPage'])->setName('menuBoard.view');
