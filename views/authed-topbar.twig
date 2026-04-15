@@ -118,7 +118,7 @@
             <li class="nav-item">
         {% endif %}
             {% if currentUser.featureEnabled("displays.view") %}
-                <a class="{{ groupElementClass }}" href="{{ url_for("display.view") }}">{% trans "Displays" %}</a>
+                 <a class="{{ groupElementClass }}" href="{{ theme.rootUri() }}prototype/displays/displays">{% trans "Displays" %}</a>
             {% endif %}
 
             {% if currentUser.featureEnabled("displaygroup.view") %}

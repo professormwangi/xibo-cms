@@ -20,12 +20,11 @@
  */
 
 import type { TFunction } from 'i18next';
+import React from 'react';
 
-import Checkbox from '@/components/ui/forms/Checkbox';
-import DatePickerInput from '@/components/ui/forms/DatePickerInput';
-import NumberInput from '@/components/ui/forms/NumberInput';
-import SelectDropdown from '@/components/ui/forms/SelectDropdown';
-import TextInput from '@/components/ui/forms/TextInput';
+import { DynamicSettingField } from './DynamicSettingField';
+import { getFieldMetaForType } from './fieldMetadata';
+
 import type { PlayerSoftware } from '@/services/playerSoftwareApi';
 import type { Daypart } from '@/types/daypart';
 
@@ -48,29 +47,6 @@ export interface ChromeOsFieldProps {
   isLoadingMorePlayerVersions?: boolean;
 }
 
-const COLLECT_INTERVAL_OPTIONS = [
-  { value: '60', label: '1 minute' },
-  { value: '300', label: '5 minutes' },
-  { value: '600', label: '10 minutes' },
-  { value: '1800', label: '30 minutes' },
-  { value: '3600', label: '1 hour' },
-  { value: '5400', label: '1 hour 30 minutes' },
-  { value: '7200', label: '2 hours' },
-  { value: '9000', label: '2 hours 30 minutes' },
-  { value: '10800', label: '3 hours' },
-  { value: '12600', label: '3 hours 30 minutes' },
-  { value: '14400', label: '4 hours' },
-  { value: '18000', label: '5 hours' },
-  { value: '21600', label: '6 hours' },
-  { value: '25200', label: '7 hours' },
-  { value: '28800', label: '8 hours' },
-  { value: '32400', label: '9 hours' },
-  { value: '36000', label: '10 hours' },
-  { value: '39600', label: '11 hours' },
-  { value: '43200', label: '12 hours' },
-  { value: '86400', label: '24 hours' },
-];
-
 export function ChromeOsFields({
   str,
   num,
@@ -89,173 +65,57 @@ export function ChromeOsFields({
   onLoadMorePlayerVersions,
   isLoadingMorePlayerVersions,
 }: ChromeOsFieldProps) {
-  if (tab === 'general') {
-    return (
-      <>
-        <TextInput
-          name="licenceCode"
-          label={t('Licence Code')}
-          placeholder=" "
-          helpText={t('Provide the Licence Code to license Players using this Display Profile.')}
-          value={str('licenceCode')}
-          onChange={setStr('licenceCode')}
-        />
-        <SelectDropdown
-          label={t('Collect interval')}
-          helper={t('How often should the Player check for new content.')}
-          value={str('collectInterval')}
-          options={COLLECT_INTERVAL_OPTIONS}
-          onSelect={setStr('collectInterval')}
-        />
-        <TextInput
-          name="xmrWebSocketAddress"
-          label={t('XMR WebSocket Address')}
-          placeholder=" "
-          helpText={t('Override the CMS WebSocket address for XMR.')}
-          value={str('xmrWebSocketAddress')}
-          onChange={setStr('xmrWebSocketAddress')}
-        />
-        <TextInput
-          name="xmrNetworkAddress"
-          label={t('XMR Public Address')}
-          placeholder=" "
-          helpText={t('Override the CMS public address for XMR.')}
-          value={str('xmrNetworkAddress')}
-          onChange={setStr('xmrNetworkAddress')}
-        />
-        <Checkbox
-          id="statsEnabled"
-          title={t('Enable stats reporting?')}
-          label={t('Should the application send proof of play stats to the CMS.')}
-          checked={bool('statsEnabled')}
-          onChange={setBool('statsEnabled')}
-        />
+  const metaMap = getFieldMetaForType('chromeOS', t);
+  const fieldsForTab = Object.entries(metaMap).filter(([, meta]) => meta.tab === tab);
 
-        {bool('statsEnabled') && (
-          <SelectDropdown
-            label={t('Aggregation level')}
-            helper={t(
-              'Set the level of collection for Proof of Play Statistics to be applied to selected Layouts / Media and Widget items.',
-            )}
-            value={str('aggregationLevel')}
-            options={[
-              { value: 'Individual', label: t('Individual') },
-              { value: 'Hourly', label: t('Hourly') },
-              { value: 'Daily', label: t('Daily') },
-            ]}
-            onSelect={setStr('aggregationLevel')}
-          />
-        )}
-        <SelectDropdown
-          label={t('Player Version')}
-          helper={t(
-            'The version of the ChromeOS Player to use for Displays assigned to this profile.',
-          )}
-          value={num('playerVersionId') ? String(num('playerVersionId')) : ''}
-          options={[
-            ...playerVersions.map((v) => ({
-              value: String(v.versionId),
-              label: v.playerShowVersion,
-            })),
-          ]}
-          placeholder=" "
-          onSelect={setStr('playerVersionId')}
-          hasMore={playerVersionsHasMore}
-          onLoadMore={onLoadMorePlayerVersions}
-          isLoadingMore={isLoadingMorePlayerVersions}
-        />
-        <SelectDropdown
-          label={t('Operating Hours')}
-          helper={t(
-            'Set the operating hours for this Display. The Display will only run during the selected Daypart.',
-          )}
-          value={num('dayPartId') ? String(num('dayPartId')) : ''}
-          options={[...dayparts.map((d) => ({ value: String(d.dayPartId), label: d.name }))]}
-          placeholder=" "
-          onSelect={setStr('dayPartId')}
-          hasMore={daypartsHasMore}
-          onLoadMore={onLoadMoreDayparts}
-          isLoadingMore={isLoadingMoreDayparts}
-        />
-      </>
-    );
+  if (fieldsForTab.length === 0) {
+    return null;
   }
 
-  if (tab === 'advanced') {
-    return (
-      <>
-        <SelectDropdown
-          label={t('Log Level')}
-          helper={t('The resting logging level that should be recorded by the Player.')}
-          value={str('logLevel')}
-          options={[
-            { value: 'emergency', label: t('Emergency') },
-            { value: 'alert', label: t('Alert') },
-            { value: 'critical', label: t('Critical') },
-            { value: 'error', label: t('Error') },
-            { value: 'off', label: t('Off') },
-          ]}
-          onSelect={setStr('logLevel')}
-        />
-        <DatePickerInput
-          label={t('Elevate Logging until')}
-          helpText={t(
-            'Elevate log level for the specified time. Should only be used if there is a problem with the display.',
-          )}
-          value={(() => {
-            const raw = str('elevateLogsUntil');
-            if (!raw || raw === '0') {
-              return '';
-            }
-            const ts = Number(raw);
-            if (!isNaN(ts) && ts > 0) {
-              return new Date(ts * 1000).toISOString();
-            }
-            const d = new Date(raw);
-            return isNaN(d.getTime()) ? '' : d.toISOString();
-          })()}
-          onChange={(iso) => {
-            if (!iso) {
-              setStr('elevateLogsUntil')('');
-              return;
-            }
-            const d = new Date(iso);
-            const formatted = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
-            setStr('elevateLogsUntil')(formatted);
-          }}
-        />
-        <Checkbox
-          id="sendCurrentLayoutAsStatusUpdate"
-          title={t('Notify current layout')}
-          label={t(
-            'When enabled the Player will send the current layout to the CMS each time it changes. Warning: This is bandwidth intensive and should be disabled unless on a LAN.',
-          )}
-          checked={bool('sendCurrentLayoutAsStatusUpdate')}
-          onChange={setBool('sendCurrentLayoutAsStatusUpdate')}
-        />
-        <NumberInput
-          name="screenShotRequestInterval"
-          label={t('Screenshot Interval')}
-          helpText={t(
-            'The duration between status screen shots in minutes. 0 to disable. Warning: This is bandwidth intensive.',
-          )}
-          value={num('screenShotRequestInterval')}
-          onChange={setNum('screenShotRequestInterval')}
-        />
-        <SelectDropdown
-          label={t('Screen Shot Size')}
-          helper={t('The size of the screenshot to return when requested.')}
-          value={num('screenShotSize') ? String(num('screenShotSize')) : ''}
-          options={[
-            { value: '1', label: t('Thumbnail') },
-            { value: '2', label: t('Standard') },
-          ]}
-          placeholder=" "
-          onSelect={setStr('screenShotSize')}
-        />
-      </>
-    );
-  }
+  const getValue = (key: string, inputType: string) => {
+    if (inputType === 'number') {
+      return num(key);
+    }
+    if (inputType === 'checkbox') {
+      return bool(key) ? 1 : 0;
+    }
+    return str(key);
+  };
 
-  return null;
+  const handleChange = (key: string, inputType: string) => (val: string | number | null) => {
+    if (inputType === 'number') {
+      setNum(key)(Number(val));
+    } else if (inputType === 'checkbox') {
+      setBool(key)({
+        target: { checked: val === 1 || val === 'on' },
+      } as React.ChangeEvent<HTMLInputElement>);
+    } else {
+      setStr(key)(val !== null ? String(val) : '');
+    }
+  };
+
+  const contextData = {
+    dayparts,
+    daypartsHasMore,
+    onLoadMoreDayparts,
+    isLoadingMoreDayparts,
+    playerVersions,
+    playerVersionsHasMore,
+    onLoadMorePlayerVersions,
+    isLoadingMorePlayerVersions,
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      {fieldsForTab.map(([key, meta]) => (
+        <DynamicSettingField
+          key={key}
+          meta={meta}
+          value={getValue(key, meta.inputType)}
+          onChange={handleChange(key, meta.inputType)}
+          contextData={contextData}
+        />
+      ))}
+    </div>
+  );
 }

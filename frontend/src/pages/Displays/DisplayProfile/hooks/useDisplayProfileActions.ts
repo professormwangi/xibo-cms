@@ -28,14 +28,11 @@ import { useState } from 'react';
 import { copyDisplayProfile, deleteDisplayProfile } from '@/services/displayProfileApi';
 import type { DisplayProfile } from '@/types/displayProfile';
 
-type SetDisplayProfileList = Dispatch<SetStateAction<DisplayProfile[]>>;
-
 interface UseDisplayProfileActionsProps {
   t: TFunction;
   handleRefresh: () => void;
   closeModal: () => void;
   setRowSelection: Dispatch<SetStateAction<RowSelectionState>>;
-  setDisplayProfileList: SetDisplayProfileList;
 }
 
 export function useDisplayProfileActions({
@@ -43,7 +40,6 @@ export function useDisplayProfileActions({
   handleRefresh,
   closeModal,
   setRowSelection,
-  setDisplayProfileList,
 }: UseDisplayProfileActionsProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -92,8 +88,7 @@ export function useDisplayProfileActions({
   const confirmCopy = async (displayProfileId: number, newName: string) => {
     try {
       setIsCopying(true);
-      const created = await copyDisplayProfile(displayProfileId, newName);
-      setDisplayProfileList((prev) => [created, ...prev]);
+      await copyDisplayProfile(displayProfileId, newName);
       handleRefresh();
       closeModal();
     } catch (error) {

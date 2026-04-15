@@ -27,6 +27,7 @@ export interface FetchDisplayProfileRequest {
   length: number;
   keyword?: string;
   type?: DisplayProfileType;
+  embed?: string;
   sortBy?: string;
   sortDir?: string;
   signal?: AbortSignal;

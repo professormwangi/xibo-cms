@@ -336,6 +336,7 @@ $app->group('', function (RouteCollectorProxy $group) {
  * Display Groups
  */
 $app->get('/displayvenue', ['\Xibo\Controller\Display','displayVenue'])->setName('display.venue.search');
+$app->get('/display/locales', ['\Xibo\Controller\Display','getLocaleLanguages'])->setName('display.locales');
 $app->get('/displaygroup', ['\Xibo\Controller\DisplayGroup','grid'])->setName('displayGroup.search');
 
 $app->post('/displaygroup', ['\Xibo\Controller\DisplayGroup','add'])
@@ -376,11 +377,13 @@ $app->post('/displaygroup/{id}/action/command', ['\Xibo\Controller\DisplayGroup'
  * Display Profile
  */
 $app->get('/displayprofile', ['\Xibo\Controller\DisplayProfile','grid'])->setName('displayProfile.search');
-$app->get('/displayprofile/{id}', ['\Xibo\Controller\DisplayProfile','searchById'])->setName('displayProfile.search.id');
+$app->get('/displayprofile/types', ['\Xibo\Controller\DisplayProfile','getDisplayProfileTypes'])
+    ->setName('displayProfile.types');
+$app->get('/displayprofile/{id}', ['\Xibo\Controller\DisplayProfile','searchById'])
+    ->setName('displayProfile.search.id');
 
 $app->group('', function (RouteCollectorProxy $group) {
     $group->post('/displayprofile', ['\Xibo\Controller\DisplayProfile','add'])->setName('displayProfile.add');
-    $group->get('/displayprofile/types', ['\Xibo\Controller\DisplayProfile','getDisplayProfileTypes'])->setName('displayProfile.types');
 })->addMiddleware(new \Xibo\Middleware\FeatureAuth($app->getContainer(), ['displayprofile.add']));
 
 $app->group('', function (RouteCollectorProxy $group) {

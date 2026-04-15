@@ -24,6 +24,13 @@ import type { Tag } from '@/types/tag';
 
 export type { DisplayGroup };
 
+export interface DisplayPermissions {
+  view?: number;
+  edit?: number;
+  delete?: number;
+  modifyPermissions?: number;
+}
+
 export interface Display {
   displayId: number;
   display: string;
@@ -70,6 +77,7 @@ export interface Display {
   clientVersion: string | null;
   clientCode: number | null;
   displayProfileId: number | null;
+  displayProfile: string | null;
   currentLayoutId: number | null;
   screenShotRequested: number;
   storageAvailableSpace: number | null;
@@ -94,6 +102,7 @@ export interface Display {
   teamViewerSerial: string | null;
   webkeySerial: string | null;
   groupsWithPermissions: string | null;
+  isPlayerSupported: number | null;
   createdDt: string | null;
   modifiedDt: string | null;
   folderId: number | null;
@@ -106,4 +115,5 @@ export interface Display {
   manufacturer: string | null;
   brand: string | null;
   model: string | null;
+  userPermissions?: DisplayPermissions;
 }

@@ -227,6 +227,22 @@ class Display extends Base
     }
 
     /**
+     * Get the list of supported locale languages
+     * @param Response $response
+     * @return Response
+     */
+    public function getLocaleLanguages(Response $response): Response
+    {
+        $languages = [];
+        $localeDir = PROJECT_ROOT . '/locale';
+        foreach (array_map('basename', glob($localeDir . '/*.mo') ?: []) as $lang) {
+            $lang = str_replace('.mo', '', $lang);
+            $languages[] = ['id' => $lang, 'value' => $lang];
+        }
+        return $response->withJson($languages);
+    }
+
+    /**
      * Include display page template page based on sub page selected
      * @param Request $request
      * @param Response $response

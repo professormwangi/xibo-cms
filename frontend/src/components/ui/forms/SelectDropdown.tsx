@@ -168,7 +168,7 @@ export default function SelectDropdown({
         <span
           className={twMerge(
             'py-2 px-3 flex-1 text-sm',
-            isLoading ? 'text-gray-400 italic' : 'text-gray-800 capitalize',
+            isLoading ? 'text-gray-400 italic' : 'text-gray-800',
           )}
         >
           {selectedLabel || t(placeholder)}
@@ -192,7 +192,7 @@ export default function SelectDropdown({
             className="z-9999 bg-white shadow-md rounded-lg overflow-clip border border-gray-200 flex flex-col"
           >
             {optionLabel && (
-              <span className="bg-gray-100 p-2 text-sm font-semibold text-gray-500 uppercase w-full flex">
+              <span className="bg-gray-100 p-2 text-sm font-semibold text-gray-500 w-full flex">
                 {t(optionLabel)}
               </span>
             )}

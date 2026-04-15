@@ -151,7 +151,6 @@ export default function DisplayProfile() {
       handleRefresh,
       closeModal,
       setRowSelection,
-      setDisplayProfileList,
     });
 
   const handleDelete = (id: number) => {
