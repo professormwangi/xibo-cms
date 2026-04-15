@@ -23,126 +23,116 @@ import { screen, fireEvent, act } from '@testing-library/react';
 import type React from 'react';
 import { vi, beforeEach, describe, test, expect } from 'vitest';
 
-import { useLayoutActions } from '../hooks/useLayoutActions';
+import { usePlaylistActions } from '../hooks/usePlaylistActions';
 
 import {
-  SINGLE_LAYOUT,
-  defaultLayoutActions,
-  mockFetchLayouts,
-  mockLayout,
-  renderLayoutsPage,
-} from './layoutTestUtils';
+  SINGLE_PLAYLIST,
+  defaultPlaylistActions,
+  mockFetchPlaylists,
+  mockPlaylist,
+  renderPlaylistsPage,
+} from './playlistTestUtils';
 
-import { fetchLayouts } from '@/services/layoutsApi';
+import { fetchPlaylist } from '@/services/playlistApi';
 import { testQueryClient } from '@/setupTests';
 
-// -----------------------------------------------------------------------------
+// =============================================================================
 // Module mocks
-// -----------------------------------------------------------------------------
+// =============================================================================
 
-// 3rd-party
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { changeLanguage: vi.fn() } }),
   Trans: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-// Services
 vi.mock('@/services/folderApi');
-vi.mock('@/services/layoutsApi');
+vi.mock('@/services/playlistApi');
 vi.mock('@/services/userApi', () => ({
   fetchUserPreference: vi.fn().mockResolvedValue(null),
   saveUserPreference: vi.fn().mockResolvedValue(undefined),
 }));
 
-// Hooks
-vi.mock('../hooks/useLayoutActions', () => ({ useLayoutActions: vi.fn() }));
-vi.mock('../hooks/useLayoutFilterOptions', () => ({
-  useLayoutFilterOptions: vi.fn(() => ({ filterOptions: [], isLoading: false })),
-}));
-vi.mock('@/hooks/useOwner', () => ({
-  useOwner: vi.fn().mockReturnValue({ owner: null, loading: false }),
+vi.mock('../hooks/usePlaylistActions', () => ({ usePlaylistActions: vi.fn() }));
+vi.mock('../hooks/usePlaylistFilterOptions', () => ({
+  usePlaylistFilterOptions: vi.fn(() => ({ filterOptions: [], isLoading: false })),
 }));
 
-// UI
 vi.mock('@/components/ui/FolderActionModals', () => ({ default: () => null }));
 vi.mock('@/components/ui/modals/Modal');
 
-// EditLayout stub - replaces the real form with a minimal dialog.
+// AddAndEditPlaylistModal stub - replaces the real form with a minimal dialog.
 // These tests only check that the page opens the modal and updates the table
-// row on save. For form field tests see Layouts.edit.form.test.tsx.
-vi.mock('../components/EditLayout', () => ({
-  default: ({
-    isOpen = true,
-    onSave,
-  }: {
-    isOpen?: boolean;
-    onSave?: (layout: Record<string, unknown>) => void;
-  }) =>
-    isOpen ? (
-      <div role="dialog" aria-label="Edit Layout">
-        <button onClick={() => onSave?.(updatedLayout)}>Save Layout</button>
-      </div>
-    ) : null,
+// row on save. For form field tests see Playlists.edit.form.test.tsx.
+//
+// PlaylistModals renders AddAndEditPlaylistModal conditionally
+// ({isModalOpen('edit') && ...}), so the stub only appears after Edit is clicked.
+vi.mock('../components/AddAndEditPlaylistModal', () => ({
+  default: ({ onSave }: { onSave?: () => void }) => (
+    <div role="dialog" aria-label="Edit Playlist">
+      <button onClick={() => onSave?.()}>Save Playlist</button>
+    </div>
+  ),
 }));
 
 // =============================================================================
 // Fixtures
 // =============================================================================
 
-const updatedLayout = { ...mockLayout, layout: 'My Layout - Edited' };
+const updatedPlaylist = { ...mockPlaylist, name: 'My Playlist - Edited' };
 
 // =============================================================================
 // Tests
 // =============================================================================
 
-describe('Layouts page - edit', () => {
+describe('Playlists page - edit', () => {
   beforeEach(() => {
     testQueryClient.clear();
     vi.clearAllMocks();
-    vi.mocked(useLayoutActions).mockReturnValue(defaultLayoutActions());
-    mockFetchLayouts(SINGLE_LAYOUT);
+    vi.mocked(usePlaylistActions).mockReturnValue(defaultPlaylistActions());
+    mockFetchPlaylists(SINGLE_PLAYLIST);
   });
 
   // ---------------------------------------------------------------------------
-  // Clicking Edit on a row opens the Edit Layout modal.
+  // Clicking Edit on a row opens the Edit Playlist modal.
   // ---------------------------------------------------------------------------
   test('opens the Edit modal when the Edit action is clicked on a row', async () => {
     await act(async () => {
-      renderLayoutsPage();
+      renderPlaylistsPage();
     });
 
     await act(async () => {
       fireEvent.click(await screen.findByTitle('Edit'));
     });
 
-    expect(await screen.findByRole('dialog', { name: 'Edit Layout' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Edit Playlist' })).toBeInTheDocument();
   });
 
   // ---------------------------------------------------------------------------
-  // Saving an edit replaces the row's name in the table immediately.
+  // Saving an edit triggers a refresh that replaces the row name in the table.
   // ---------------------------------------------------------------------------
   test('saving an edit updates the row name in the table', async () => {
     await act(async () => {
-      renderLayoutsPage();
+      renderPlaylistsPage();
     });
 
-    expect(await screen.findByText(mockLayout.layout)).toBeInTheDocument();
+    expect(await screen.findByText(mockPlaylist.name)).toBeInTheDocument();
 
     await act(async () => {
       fireEvent.click(await screen.findByTitle('Edit'));
     });
 
-    // When the data is refreshed, return the updated layout.
-    // This happens because handleRefresh asks to reload the data.
-    vi.mocked(fetchLayouts).mockResolvedValueOnce({
-      rows: [updatedLayout],
+    // When the data is refreshed, return the updated playlist.
+    // This happens because onSave triggers handleRefresh which invalidates
+    // the ['playlist'] query and causes a refetch.
+    vi.mocked(fetchPlaylist).mockResolvedValueOnce({
+      rows: [updatedPlaylist],
       totalCount: 1,
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Save Layout' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Save Playlist' }));
     });
 
-    expect(await screen.findByText(updatedLayout.layout)).toBeInTheDocument();
+    expect(await screen.findByText(updatedPlaylist.name)).toBeInTheDocument();
   });
 });

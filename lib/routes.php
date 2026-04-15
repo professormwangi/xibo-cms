@@ -148,6 +148,7 @@ $app->group('/region', function (RouteCollectorProxy $group) {
  * playlist
  */
 $app->get('/playlist', ['\Xibo\Controller\Playlist','grid'])->setName('playlist.search');
+$app->get('/playlist/{id}', ['\Xibo\Controller\Playlist','searchById'])->setName('playlist.search.id');
 
 $app->post('/playlist', ['\Xibo\Controller\Playlist','add'])
     ->addMiddleware(new FeatureAuth($app->getContainer(), ['playlist.add']))
@@ -220,6 +221,7 @@ $app->group('/playlist/widget', function (RouteCollectorProxy $group) {
  * Campaign
  */
 $app->get('/campaign', ['\Xibo\Controller\Campaign','grid'])->setName('campaign.search');
+$app->get('/campaign/{id}', ['\Xibo\Controller\Campaign', 'searchById'])->setName('campaign.search.id');
 $app->post('/campaign', ['\Xibo\Controller\Campaign','add'])
     ->addMiddleware(new FeatureAuth($app->getContainer(), ['campaign.add']))
     ->setName('campaign.add');

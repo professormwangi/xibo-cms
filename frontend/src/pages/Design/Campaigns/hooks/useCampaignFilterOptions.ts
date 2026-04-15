@@ -19,34 +19,12 @@
  * along with Xibo.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { ElementType } from 'react';
+import type { TFunction } from 'i18next';
 
-export type ActionItem =
-  | {
-      isSeparator: true;
-      label?: never;
-      icon?: never;
-      onClick?: never;
-      variant?: never;
-      isQuickAction?: never;
-      rightIcon?: never;
-    }
-  | {
-      isSeparator?: false | undefined;
-      label: string;
-      icon?: ElementType;
-      onClick?: () => void;
-      variant?: 'default' | 'primary' | 'danger';
-      isQuickAction?: boolean;
-      rightIcon?: ElementType;
-    };
+import { getCampaignFilterKeys } from '../CampaignConfig';
 
-export type BaseModalType =
-  | 'edit'
-  | 'share'
-  | 'delete'
-  | 'copy'
-  | 'move'
-  | 'logout'
-  | 'import'
-  | 'add';
+export function useCampaignFilterOptions(t: TFunction) {
+  const filterOptions = getCampaignFilterKeys(t);
+
+  return { filterOptions, isLoading: false };
+}
