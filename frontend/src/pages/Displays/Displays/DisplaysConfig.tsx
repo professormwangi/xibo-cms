@@ -723,7 +723,7 @@ export const getDisplayColumns = (props: DisplayActionsProps): ColumnDef<Display
       accessorKey: 'lastAccessed',
       header: t('Last Accessed'),
       size: 180,
-      cell: (info) => <TextCell>{formatUnixTimestamp(info.getValue<number | null>())}</TextCell>,
+      cell: (info) => <TextCell>{info.getValue<string | null>() ?? ''}</TextCell>,
     },
     {
       accessorKey: 'displayProfile',
