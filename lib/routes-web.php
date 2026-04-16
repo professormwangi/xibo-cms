@@ -328,13 +328,6 @@ $app->get('/displaygroup/form/{id}/selectfolder', ['\Xibo\Controller\DisplayGrou
     ->setName('displayGroup.selectfolder.form');
 
 //
-// displayprofile
-//
-$app->group('', function(\Slim\Routing\RouteCollectorProxy $group) {
-    $group->get('/displayprofile/form/edit/{id}', ['\Xibo\Controller\DisplayProfile','editForm'])->setName('displayProfile.edit.form');
-})->addMiddleware(new FeatureAuth($app->getContainer(), ['displayprofile.modify']));
-
-//
 // group
 //
 $app->get('/group/view', ['\Xibo\Controller\UserGroup','displayPage'])

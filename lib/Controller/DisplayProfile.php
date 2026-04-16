@@ -249,9 +249,11 @@ class DisplayProfile extends Base
         tags: ['displayprofile']
     )]
     #[OA\RequestBody(
+        required: true,
         content: new OA\MediaType(
             mediaType: 'application/x-www-form-urlencoded',
             schema: new OA\Schema(
+                required: ['name', 'type', 'isDefault'],
                 properties: [
                     new OA\Property(property: 'name', description: 'The Name of the Display Profile', type: 'string'),
                     new OA\Property(
@@ -264,23 +266,21 @@ class DisplayProfile extends Base
                         description: 'Flag indicating if this is the default profile for the client type',
                         type: 'integer'
                     )
-                ],
-                required: ['name', 'type', 'isDefault']
+                ]
             )
-        ),
-        required: true
+        )
     )]
     #[OA\Response(
         response: 201,
         description: 'successful operation',
-        content: new OA\JsonContent(ref: '#/components/schemas/DisplayProfile'),
         headers: [
             new OA\Header(
                 header: 'Location',
                 description: 'Location of the new record',
                 schema: new OA\Schema(type: 'string')
             )
-        ]
+        ],
+        content: new OA\JsonContent(ref: '#/components/schemas/DisplayProfile')
     )]
     /**
      * Display Profile Add
@@ -318,76 +318,6 @@ class DisplayProfile extends Base
         return $this->render($request, $response);
     }
 
-    /**
-     * Edit Profile Form
-     * @param Request $request
-     * @param Response $response
-     * @param $id
-     * @return ResponseInterface|Response
-     * @throws AccessDeniedException
-     * @throws NotFoundException
-     * @throws ControllerNotImplemented
-     * @throws GeneralException
-     */
-    public function editForm(Request $request, Response $response, $id)
-    {
-        // Create a form out of the config object.
-        $displayProfile = $this->displayProfileFactory->getById($id);
-
-        // Check permissions
-        if ($this->getUser()->userTypeId != 1 && $this->getUser()->userId != $displayProfile->userId) {
-            throw new AccessDeniedException(__('You do not have permission to edit this profile'));
-        }
-
-        // Player Version Setting
-        $versionId = $displayProfile->type === 'chromeOS'
-            ? $displayProfile->getSetting('playerVersionId')
-            : $displayProfile->getSetting('versionMediaId');
-
-        $playerVersions = [];
-
-        // Daypart - Operating Hours
-        $dayPartId = $displayProfile->getSetting('dayPartId');
-        $dayparts = [];
-
-        // Get the Player Version for this display profile type
-        if ($versionId !== null) {
-            try {
-                $playerVersions[] = $this->playerVersionFactory->getById($versionId);
-            } catch (NotFoundException) {
-                $this->getLog()->debug('Unknown versionId set on Display Profile. '
-                    . $displayProfile->displayProfileId);
-            }
-        }
-
-        if ($dayPartId !== null) {
-            try {
-                $dayparts[] = $this->dayPartFactory->getById($dayPartId);
-            } catch (NotFoundException $e) {
-                $this->getLog()->debug('Unknown dayPartId set on Display Profile. ' . $displayProfile->displayProfileId);
-            }
-        }
-
-        // elevated logs
-        $elevateLogsUntil = $displayProfile->getSetting('elevateLogsUntil');
-        $elevateLogsUntilIso = !empty($elevateLogsUntil)
-            ? Carbon::createFromTimestamp($elevateLogsUntil)->format(DateFormatHelper::getSystemFormat())
-            : null;
-        $displayProfile->setUnmatchedProperty('elevateLogsUntilIso', $elevateLogsUntilIso);
-
-        $this->getState()->template = 'displayprofile-form-edit';
-        $this->getState()->setData([
-            'displayProfile' => $displayProfile,
-            'commands' => $displayProfile->commands,
-            'versions' => $playerVersions,
-            'lockOptions' => json_decode($displayProfile->getSetting('lockOptions', '[]'), true),
-            'dayParts' => $dayparts
-        ]);
-
-
-        return $this->render($request, $response);
-    }
-
     #[OA\Put(
         path: '/displayprofile/{displayProfileId}',
         operationId: 'displayProfileEdit',
@@ -403,9 +333,11 @@ class DisplayProfile extends Base
         schema: new OA\Schema(type: 'integer')
     )]
     #[OA\RequestBody(
+        required: true,
         content: new OA\MediaType(
             mediaType: 'application/x-www-form-urlencoded',
             schema: new OA\Schema(
+                required: ['name', 'type', 'isDefault'],
                 properties: [
                     new OA\Property(property: 'name', description: 'The Name of the Display Profile', type: 'string'),
                     new OA\Property(
@@ -418,11 +350,9 @@ class DisplayProfile extends Base
                         description: 'Flag indicating if this is the default profile for the client type',
                         type: 'integer'
                     )
-                ],
-                required: ['name', 'type', 'isDefault']
+                ]
             )
-        ),
-        required: true
+        )
     )]
     #[OA\Response(response: 204, description: 'successful operation')]
     /**
@@ -574,14 +504,14 @@ class DisplayProfile extends Base
     #[OA\Response(
         response: 201,
         description: 'successful operation',
-        content: new OA\JsonContent(ref: '#/components/schemas/DisplayProfile'),
         headers: [
             new OA\Header(
                 header: 'Location',
                 description: 'Location of the new record',
                 schema: new OA\Schema(type: 'string')
             )
-        ]
+        ],
+        content: new OA\JsonContent(ref: '#/components/schemas/DisplayProfile')
     )]
     /**
      * Copy Display Profile
