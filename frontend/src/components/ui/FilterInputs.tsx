@@ -19,6 +19,8 @@
  * along with Xibo.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { t } from 'i18next';
+
 import Button from './Button';
 import InputFilter from './InputFilter';
 import type { FilterOption } from './SelectFilter';
@@ -70,17 +72,17 @@ export default function FilterInputs<T>({
         }
       `}
     >
-      <div className="relative bg-slate-50 p-5 pt-7 flex flex-wrap justify-between gap-1 gap-y-2 md:gap-x-3">
+      <div className="relative bg-slate-50 p-5 pt-7 grid grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] gap-4 items-end">
+        {' '}
         {onReset && (
           <Button
             variant="tertiary"
             className="absolute right-1 top-1 focus:outline-0"
             onClick={onReset}
           >
-            Reset
+            {t('Reset')}
           </Button>
         )}
-
         {options.map((filter) => {
           const filterType = filter.type || 'select';
 

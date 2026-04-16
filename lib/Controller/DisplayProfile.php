@@ -23,6 +23,7 @@ namespace Xibo\Controller;
 
 use Carbon\Carbon;
 use OpenApi\Attributes as OA;
+use Psr\Http\Message\ResponseInterface;
 use Slim\Http\Response as Response;
 use Slim\Http\ServerRequest as Request;
 use Stash\Interfaces\PoolInterface;
@@ -32,6 +33,9 @@ use Xibo\Factory\DisplayProfileFactory;
 use Xibo\Factory\PlayerVersionFactory;
 use Xibo\Helper\DateFormatHelper;
 use Xibo\Support\Exception\AccessDeniedException;
+use Xibo\Support\Exception\ControllerNotImplemented;
+use Xibo\Support\Exception\GeneralException;
+use Xibo\Support\Exception\InvalidArgumentException;
 use Xibo\Support\Exception\NotFoundException;
 
 /**
@@ -80,24 +84,6 @@ class DisplayProfile extends Base
         $this->dayPartFactory = $dayPartFactory;
     }
 
-    /**
-     * Include display page template page based on sub page selected
-     * @param Request $request
-     * @param Response $response
-     * @return \Psr\Http\Message\ResponseInterface|Response
-     * @throws \Xibo\Support\Exception\ControllerNotImplemented
-     * @throws \Xibo\Support\Exception\GeneralException
-     */
-    function displayPage(Request $request, Response $response)
-    {
-        $this->getState()->template = 'displayprofile-page';
-        $this->getState()->setData([
-            'types' => $this->displayProfileFactory->getAvailableTypes()
-        ]);
-
-        return $this->render($request, $response);
-    }
-
     #[OA\Get(
         path: '/displayprofile',
         operationId: 'displayProfileSearch',
@@ -133,9 +119,45 @@ class DisplayProfile extends Base
         required: false,
         schema: new OA\Schema(type: 'string')
     )]
+    #[OA\Parameter(
+        name: 'keyword',
+        description: 'Filter by display profile name, ID, or type',
+        in: 'query',
+        required: false,
+        schema: new OA\Schema(type: 'string')
+    )]
+    #[OA\Parameter(
+        name: 'sortBy',
+        description: 'Specifies which field the results are sorted by. Used together with sortDir',
+        in: 'query',
+        required: false,
+        schema: new OA\Schema(
+            type: 'string',
+            enum: [
+                'displayProfileId',
+                'name',
+                'type',
+                'isDefault',
+            ]
+        )
+    )]
+    #[OA\Parameter(
+        name: 'sortDir',
+        description: 'Sort direction',
+        in: 'query',
+        required: false,
+        schema: new OA\Schema(type: 'string', enum: ['asc', 'desc'])
+    )]
     #[OA\Response(
         response: 200,
         description: 'successful operation',
+        headers: [
+            new OA\Header(
+                header: 'X-Total-Count',
+                description: 'The total number of records',
+                schema: new OA\Schema(type: 'integer')
+            )
+        ],
         content: new OA\JsonContent(
             type: 'array',
             items: new OA\Items(ref: '#/components/schemas/DisplayProfile')
@@ -144,112 +166,79 @@ class DisplayProfile extends Base
     /**
      * @param Request $request
      * @param Response $response
-     * @return \Psr\Http\Message\ResponseInterface|Response
+     * @return ResponseInterface|Response
      * @throws NotFoundException
-     * @throws \Xibo\Support\Exception\ControllerNotImplemented
-     * @throws \Xibo\Support\Exception\GeneralException
+     * @throws GeneralException
      */
-    function grid(Request $request, Response $response)
+    function grid(Request $request, Response $response): Response|ResponseInterface
     {
         $parsedQueryParams = $this->getSanitizer($request->getQueryParams());
-
-        $filter = [
-            'displayProfileId' => $parsedQueryParams->getInt('displayProfileId'),
-            'displayProfile' => $parsedQueryParams->getString('displayProfile'),
-            'useRegexForName' => $parsedQueryParams->getCheckbox('useRegexForName'),
-            'type' => $parsedQueryParams->getString('type'),
-            'logicalOperatorName' => $parsedQueryParams->getString('logicalOperatorName'),
-        ];
 
         $embed = ($parsedQueryParams->getString('embed') != null)
             ? explode(',', $parsedQueryParams->getString('embed'))
             : [];
 
+        $displayProfileSortQuery = $this->gridRenderSort(
+            $parsedQueryParams,
+            $this->isJson($request),
+            'displayProfileId'
+        );
+
+        $displayProfileFilterQuery = $this->getDisplayProfileFilterQuery($parsedQueryParams);
+
         $profiles = $this->displayProfileFactory->query(
-            $this->gridRenderSort($parsedQueryParams),
-            $this->gridRenderFilter($filter, $parsedQueryParams)
+            $displayProfileSortQuery,
+            $displayProfileFilterQuery
         );
 
         foreach ($profiles as $profile) {
-            // Load the config
-            $profile->load([
-                'loadConfig' => in_array('config', $embed),
-                'loadCommands' => in_array('commands', $embed)
-            ]);
-
-            if (in_array('configWithDefault', $embed)) {
-                $profile->includeProperty('configDefault');
-            }
-
-            if (!in_array('config', $embed)) {
-                $profile->excludeProperty('config');
-            }
-
-            if ($this->isApi($request)) {
-                continue;
-            }
-
-            $profile->includeProperty('buttons');
-
-            if ($this->getUser()->featureEnabled('displayprofile.modify')) {
-                // Default Layout
-                $profile->buttons[] = array(
-                    'id' => 'displayprofile_button_edit',
-                    'url' => $this->urlFor(
-                        $request,
-                        'displayProfile.edit.form',
-                        ['id' => $profile->displayProfileId]
-                    ),
-                    'text' => __('Edit')
-                );
-
-                $profile->buttons[] = array(
-                    'id' => 'displayprofile_button_copy',
-                    'url' => $this->urlFor(
-                        $request,
-                        'displayProfile.copy.form',
-                        ['id' => $profile->displayProfileId]
-                    ),
-                    'text' => __('Copy')
-                );
-
-                if ($this->getUser()->checkDeleteable($profile)) {
-                    $profile->buttons[] = array(
-                        'id' => 'displayprofile_button_delete',
-                        'url' => $this->urlFor(
-                            $request,
-                            'displayProfile.delete.form',
-                            ['id' => $profile->displayProfileId]
-                        ),
-                        'text' => __('Delete')
-                    );
-                }
-            }
+            $this->decorateDisplayProfileProperties($profile, $embed);
         }
 
-        $this->getState()->template = 'grid';
-        $this->getState()->recordsTotal = $this->displayProfileFactory->countLast();
-        $this->getState()->setData($profiles);
+        $recordsTotal = $this->displayProfileFactory->countLast();
 
-        return $this->render($request, $response);
+        return $response
+            ->withStatus(200)
+            ->withHeader('X-Total-Count', $recordsTotal)
+            ->withJson($profiles);
     }
 
+    #[OA\Get(
+        path: '/displayprofile/{id}',
+        operationId: 'displayProfileSearchById',
+        description: 'Get the Display Profile object specified by the provided displayProfileId',
+        summary: 'Display Profile Search by ID',
+        tags: ['displayprofile']
+    )]
+    #[OA\Parameter(
+        name: 'displayProfileId',
+        description: 'Numeric ID of the Display Profile to get',
+        in: 'path',
+        required: true,
+        schema: new OA\Schema(type: 'integer')
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'successful operation',
+        content: new OA\JsonContent(ref: '#/components/schemas/DisplayProfile')
+    )]
     /**
-     * Display Profile Add Form
      * @param Request $request
      * @param Response $response
-     * @return \Psr\Http\Message\ResponseInterface|Response
-     * @throws \Xibo\Support\Exception\ControllerNotImplemented
-     * @throws \Xibo\Support\Exception\GeneralException
+     * @param int $id
+     * @return Response|ResponseInterface
+     * @throws InvalidArgumentException
+     * @throws NotFoundException
      */
-    function addForm(Request $request, Response $response)
+    public function searchById(Request $request, Response $response, int $id): Response|ResponseInterface
     {
-        $this->getState()->template = 'displayprofile-form-add';
-        $this->getState()->setData([
-            'types' => $this->displayProfileFactory->getAvailableTypes()
-        ]);
+        $displayProfile = $this->displayProfileFactory->getById($id, false);
 
-        return $this->render($request, $response);
+        $displayProfile->setUnmatchedProperty('userPermissions', $this->getUser()->getPermission($displayProfile));
+
+        return $response
+            ->withStatus(200)
+            ->withJson($displayProfile);
     }
 
     #[OA\Post(
@@ -298,12 +287,12 @@ class DisplayProfile extends Base
      *
      * @param Request $request
      * @param Response $response
-     * @return \Psr\Http\Message\ResponseInterface|Response
-     * @throws \Xibo\Support\Exception\ControllerNotImplemented
-     * @throws \Xibo\Support\Exception\GeneralException
-     * @throws \Xibo\Support\Exception\InvalidArgumentException
+     * @return ResponseInterface|Response
+     * @throws ControllerNotImplemented
+     * @throws GeneralException
+     * @throws InvalidArgumentException
      */
-    public function add(Request $request, Response $response)
+    public function add(Request $request, Response $response): Response|ResponseInterface
     {
         $sanitizedParams = $this->getSanitizer($request->getParams());
 
@@ -334,11 +323,11 @@ class DisplayProfile extends Base
      * @param Request $request
      * @param Response $response
      * @param $id
-     * @return \Psr\Http\Message\ResponseInterface|Response
+     * @return ResponseInterface|Response
      * @throws AccessDeniedException
      * @throws NotFoundException
-     * @throws \Xibo\Support\Exception\ControllerNotImplemented
-     * @throws \Xibo\Support\Exception\GeneralException
+     * @throws ControllerNotImplemented
+     * @throws GeneralException
      */
     public function editForm(Request $request, Response $response, $id)
     {
@@ -441,14 +430,14 @@ class DisplayProfile extends Base
      * @param Request $request
      * @param Response $response
      * @param $id
-     * @return \Psr\Http\Message\ResponseInterface|Response
+     * @return ResponseInterface|Response
      * @throws AccessDeniedException
      * @throws NotFoundException
-     * @throws \Xibo\Support\Exception\ControllerNotImplemented
-     * @throws \Xibo\Support\Exception\GeneralException
-     * @throws \Xibo\Support\Exception\InvalidArgumentException
+     * @throws ControllerNotImplemented
+     * @throws GeneralException
+     * @throws InvalidArgumentException
      */
-    public function edit(Request $request, Response $response, $id)
+    public function edit(Request $request, Response $response, $id): Response|ResponseInterface
     {
         // Create a form out of the config object.
         $displayProfile = $this->displayProfileFactory->getById($id);
@@ -514,33 +503,6 @@ class DisplayProfile extends Base
         return $this->render($request, $response);
     }
 
-    /**
-     * Delete Form
-     * @param Request $request
-     * @param Response $response
-     * @param $id
-     * @return \Psr\Http\Message\ResponseInterface|Response
-     * @throws AccessDeniedException
-     * @throws NotFoundException
-     * @throws \Xibo\Support\Exception\ControllerNotImplemented
-     * @throws \Xibo\Support\Exception\GeneralException
-     */
-    function deleteForm(Request $request, Response $response, $id)
-    {
-        // Create a form out of the config object.
-        $displayProfile = $this->displayProfileFactory->getById($id);
-
-        if ($this->getUser()->userTypeId != 1 && $this->getUser()->userId != $displayProfile->userId)
-            throw new AccessDeniedException(__('You do not have permission to edit this profile'));
-
-        $this->getState()->template = 'displayprofile-form-delete';
-        $this->getState()->setData([
-            'displayProfile' => $displayProfile,
-        ]);
-
-        return $this->render($request, $response);
-    }
-
     #[OA\Delete(
         path: '/displayprofile/{displayProfileId}',
         operationId: 'displayProfileDelete',
@@ -561,14 +523,14 @@ class DisplayProfile extends Base
      * @param Request $request
      * @param Response $response
      * @param $id
-     * @return \Psr\Http\Message\ResponseInterface|Response
+     * @return ResponseInterface|Response
      * @throws AccessDeniedException
      * @throws NotFoundException
-     * @throws \Xibo\Support\Exception\ControllerNotImplemented
-     * @throws \Xibo\Support\Exception\GeneralException
-     * @throws \Xibo\Support\Exception\InvalidArgumentException
+     * @throws ControllerNotImplemented
+     * @throws GeneralException
+     * @throws InvalidArgumentException
      */
-    function delete(Request $request, Response $response, $id)
+    function delete(Request $request, Response $response, $id): Response|ResponseInterface
     {
         // Create a form out of the config object.
         $displayProfile = $this->displayProfileFactory->getById($id);
@@ -583,32 +545,6 @@ class DisplayProfile extends Base
         $this->getState()->hydrate([
             'httpStatus' => 204,
             'message' => sprintf(__('Deleted %s'), $displayProfile->name)
-        ]);
-
-        return $this->render($request, $response);
-    }
-
-    /**
-     * @param Request $request
-     * @param Response $response
-     * @param $id
-     * @return \Psr\Http\Message\ResponseInterface|Response
-     * @throws AccessDeniedException
-     * @throws NotFoundException
-     * @throws \Xibo\Support\Exception\ControllerNotImplemented
-     * @throws \Xibo\Support\Exception\GeneralException
-     */
-    public function copyForm(Request $request, Response $response, $id)
-    {
-        // Create a form out of the config object.
-        $displayProfile = $this->displayProfileFactory->getById($id);
-
-        if ($this->getUser()->userTypeId != 1 && $this->getUser()->userId != $displayProfile->userId)
-            throw new AccessDeniedException(__('You do not have permission to delete this profile'));
-
-        $this->getState()->template = 'displayprofile-form-copy';
-        $this->getState()->setData([
-            'displayProfile' => $displayProfile
         ]);
 
         return $this->render($request, $response);
@@ -652,14 +588,14 @@ class DisplayProfile extends Base
      * @param Request $request
      * @param Response $response
      * @param $id
-     * @return \Psr\Http\Message\ResponseInterface|Response
+     * @return ResponseInterface|Response
      * @throws AccessDeniedException
      * @throws NotFoundException
-     * @throws \Xibo\Support\Exception\ControllerNotImplemented
-     * @throws \Xibo\Support\Exception\GeneralException
-     * @throws \Xibo\Support\Exception\InvalidArgumentException
+     * @throws ControllerNotImplemented
+     * @throws GeneralException
+     * @throws InvalidArgumentException
      */
-    public function copy(Request $request, Response $response, $id)
+    public function copy(Request $request, Response $response, $id): Response|ResponseInterface
     {
         // Create a form out of the config object.
         $displayProfile = $this->displayProfileFactory->getById($id);
@@ -695,5 +631,58 @@ class DisplayProfile extends Base
         ]);
 
         return $this->render($request, $response);
+    }
+
+    /**
+     * List of display profile types
+     * @param Response $response
+     * @return Response
+     */
+    public function getDisplayProfileTypes(Response $response): Response
+    {
+        return $response->withJson($this->displayProfileFactory->getAvailableTypes());
+    }
+
+    /**
+     * Get the display profile filters
+     * @param $parsedQueryParams
+     * @return array
+     */
+    private function getDisplayProfileFilterQuery($parsedQueryParams): array
+    {
+        return $this->gridRenderFilter([
+            'displayProfileId' => $parsedQueryParams->getInt('displayProfileId'),
+            'displayProfile' => $parsedQueryParams->getString('displayProfile'),
+            'useRegexForName' => $parsedQueryParams->getCheckbox('useRegexForName'),
+            'type' => $parsedQueryParams->getString('type'),
+            'logicalOperatorName' => $parsedQueryParams->getString('logicalOperatorName'),
+            'keyword' => $parsedQueryParams->getString('keyword')
+        ], $parsedQueryParams);
+    }
+
+    /**
+     * Decorate display profile properties
+     * @param $profile
+     * @param $embed
+     * @return void
+     * @throws InvalidArgumentException
+     */
+    private function decorateDisplayProfileProperties($profile, $embed): void
+    {
+        // Load the config
+        $profile->load([
+            'loadConfig' => in_array('config', $embed),
+            'loadCommands' => in_array('commands', $embed)
+        ]);
+
+        if (in_array('configWithDefault', $embed)) {
+            $profile->includeProperty('configDefault');
+        }
+
+        if (!in_array('config', $embed)) {
+            $profile->excludeProperty('config');
+        }
+
+        $profile->setUnmatchedProperty('userPermissions', $this->getUser()->getPermission($profile));
     }
 }

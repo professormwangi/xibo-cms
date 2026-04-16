@@ -28,6 +28,7 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   rightIcon?: LucideIcon;
   removeTextOnMobile?: boolean;
   ariaLabel?: string;
+  ref?: React.Ref<HTMLButtonElement>;
 };
 
 const buttonVariant: Record<NonNullable<ButtonProps['variant']>, string> = {
@@ -54,6 +55,7 @@ export default function Button({
   removeTextOnMobile = false,
   ariaLabel,
   disabled = false,
+  ref,
   ...props
 }: ButtonProps) {
   const showText = Boolean(children);
@@ -63,6 +65,7 @@ export default function Button({
       className={twMerge(baseClasses, buttonVariant[variant], className)}
       aria-label={!showText ? ariaLabel : undefined}
       disabled={disabled}
+      ref={ref}
       {...props}
     >
       {LeftIcon && <LeftIcon className="shrink-0 size-4" aria-hidden="true" />}

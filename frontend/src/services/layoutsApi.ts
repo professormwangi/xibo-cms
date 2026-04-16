@@ -38,6 +38,7 @@ export interface FetchLayoutRequest {
   ownerUserGroupId?: string;
   lastModified?: string;
   activeDisplayGroupId?: number;
+  displayGroupId?: number;
 }
 
 export interface FetchLayoutResponse {

@@ -2558,6 +2558,7 @@ class Library extends Base
             'onlyMenuBoardAllowed' => $parsedQueryParams->getInt('onlyMenuBoardAllowed'),
             'layoutId' => $parsedQueryParams->getInt('layoutId'),
             'includeLayoutBackgroundImage' => ($parsedQueryParams->getInt('layoutId') != null) ? 1 : 0,
+            'displayGroupId' => $parsedQueryParams->getInt('displayGroupId'),
             'orientation' => $parsedQueryParams->getString('orientation', ['defaultOnEmptyString' => true]),
             'logicalOperator' => $parsedQueryParams->getString('logicalOperator'),
             'logicalOperatorName' => $parsedQueryParams->getString('logicalOperatorName'),

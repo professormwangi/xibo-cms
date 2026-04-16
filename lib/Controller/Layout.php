@@ -2956,6 +2956,7 @@ class Layout extends Base
             'mediaLike' => $parsedQueryParams->getString('mediaLike'),
             'publishedStatusId' => $parsedQueryParams->getInt('publishedStatusId'),
             'activeDisplayGroupId' => $parsedQueryParams->getInt('activeDisplayGroupId'),
+            'displayGroupId' => $parsedQueryParams->getInt('displayGroupId'),
             'campaignId' => $parsedQueryParams->getInt('campaignId'),
             'folderId' => $parsedQueryParams->getInt('folderId'),
             'codeLike' => $parsedQueryParams->getString('codeLike'),

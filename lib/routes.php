@@ -306,30 +306,46 @@ $app->group('', function (RouteCollectorProxy $group) {
  * Displays
  */
 $app->get('/display', ['\Xibo\Controller\Display', 'grid'])->setName('display.search');
-
+$app->get('/display/locales', ['\Xibo\Controller\Display','getLocaleLanguages'])->setName('display.locales');
 $app->group('', function (RouteCollectorProxy $group) {
-    $group->put('/display/requestscreenshot/{id}', ['\Xibo\Controller\Display','requestScreenShot'])->setName('display.requestscreenshot');
-    $group->put('/display/licenceCheck/{id}', ['\Xibo\Controller\Display','checkLicence'])->setName('display.licencecheck');
-    $group->put('/display/purgeAll/{id}', ['\Xibo\Controller\Display','purgeAll'])->setName('display.purge.all');
-    $group->get('/display/screenshot/{id}', ['\Xibo\Controller\Display','screenShot'])->setName('display.screenShot');
-    $group->get('/display/status/{id}', ['\Xibo\Controller\Display','statusWindow'])->setName('display.statusWindow');
-    $group->get('/display/faults[/{displayId}]', ['\Xibo\Controller\PlayerFault','grid'])->setName('display.faults.search');
+    $group->put('/display/requestscreenshot/{id}', ['\Xibo\Controller\Display','requestScreenShot'])
+        ->setName('display.requestscreenshot');
+    $group->put('/display/licenceCheck/{id}', ['\Xibo\Controller\Display','checkLicence'])
+        ->setName('display.licencecheck');
+    $group->put('/display/purgeAll/{id}', ['\Xibo\Controller\Display','purgeAll'])
+        ->setName('display.purge.all');
+    $group->get('/display/screenshot/{id}', ['\Xibo\Controller\Display','screenShot'])
+        ->setName('display.screenShot');
+    $group->get('/display/status/{id}', ['\Xibo\Controller\Display','statusWindow'])
+        ->setName('display.statusWindow');
+    $group->get('/display/faults[/{displayId}]', ['\Xibo\Controller\PlayerFault','grid'])
+        ->setName('display.faults.search');
+    $group->get('/display/{id}', ['\Xibo\Controller\Display', 'searchById'])->setName('display.search.id');
 })->addMiddleware(new \Xibo\Middleware\FeatureAuth($app->getContainer(), ['displays.view']));
 
 $app->group('', function (RouteCollectorProxy $group) {
-    $group->put('/display/authorise/{id}', ['\Xibo\Controller\Display','toggleAuthorise'])->setName('display.authorise');
+    $group->put('/display/authorise/{id}', ['\Xibo\Controller\Display','toggleAuthorise'])
+        ->setName('display.authorise');
     $group->post('/display/addViaCode', ['\Xibo\Controller\Display','addViaCode'])->setName('display.addViaCode');
 })->addMiddleware(new \Xibo\Middleware\FeatureAuth($app->getContainer(), ['displays.add']));
 
 $app->group('', function (RouteCollectorProxy $group) {
-    $group->put('/display/{id}', ['\Xibo\Controller\Display','edit'])->setName('display.edit');
-    $group->delete('/display/{id}', ['\Xibo\Controller\Display','delete'])->setName('display.delete');
-    $group->post('/display/wol/{id}', ['\Xibo\Controller\Display','wakeOnLan'])->setName('display.wol');
-    $group->put('/display/setBandwidthLimit/multi', ['\Xibo\Controller\Display','setBandwidthLimitMultiple'])->setName('display.setBandwidthLimitMultiple');
-    $group->put('/display/defaultlayout/{id}', ['\Xibo\Controller\Display','setDefaultLayout'])->setName('display.defaultlayout');
-    $group->post('/display/{id}/displaygroup/assign', ['\Xibo\Controller\Display','assignDisplayGroup'])->setName('display.assign.displayGroup');
-    $group->put('/display/{id}/moveCms', ['\Xibo\Controller\Display','moveCms'])->setName('display.moveCms');
-    $group->delete('/display/{id}/moveCms', ['\Xibo\Controller\Display','moveCmsCancel'])->setName('display.moveCmsCancel');
+    $group->put('/display/{id}', ['\Xibo\Controller\Display','edit'])
+        ->setName('display.edit');
+    $group->delete('/display/{id}', ['\Xibo\Controller\Display','delete'])
+        ->setName('display.delete');
+    $group->post('/display/wol/{id}', ['\Xibo\Controller\Display','wakeOnLan'])
+        ->setName('display.wol');
+    $group->put('/display/setBandwidthLimit/multi', ['\Xibo\Controller\Display','setBandwidthLimitMultiple'])
+        ->setName('display.setBandwidthLimitMultiple');
+    $group->put('/display/defaultlayout/{id}', ['\Xibo\Controller\Display','setDefaultLayout'])
+        ->setName('display.defaultlayout');
+    $group->post('/display/{id}/displaygroup/assign', ['\Xibo\Controller\Display','assignDisplayGroup'])
+        ->setName('display.assign.displayGroup');
+    $group->put('/display/{id}/moveCms', ['\Xibo\Controller\Display','moveCms'])
+        ->setName('display.moveCms');
+    $group->delete('/display/{id}/moveCms', ['\Xibo\Controller\Display','moveCmsCancel'])
+        ->setName('display.moveCmsCancel');
 })->addMiddleware(new \Xibo\Middleware\FeatureAuth($app->getContainer(), ['displays.modify']));
 
 /**
@@ -376,10 +392,14 @@ $app->post('/displaygroup/{id}/action/command', ['\Xibo\Controller\DisplayGroup'
  * Display Profile
  */
 $app->get('/displayprofile', ['\Xibo\Controller\DisplayProfile','grid'])->setName('displayProfile.search');
+$app->get('/displayprofile/types', ['\Xibo\Controller\DisplayProfile','getDisplayProfileTypes'])
+    ->setName('displayProfile.types');
+$app->get('/displayprofile/{id}', ['\Xibo\Controller\DisplayProfile','searchById'])
+    ->setName('displayProfile.search.id');
 
-$app->post('/displayprofile', ['\Xibo\Controller\DisplayProfile','add'])
-    ->addMiddleware(new \Xibo\Middleware\FeatureAuth($app->getContainer(), ['displayprofile.add']))
-    ->setName('displayProfile.add');
+$app->group('', function (RouteCollectorProxy $group) {
+    $group->post('/displayprofile', ['\Xibo\Controller\DisplayProfile','add'])->setName('displayProfile.add');
+})->addMiddleware(new \Xibo\Middleware\FeatureAuth($app->getContainer(), ['displayprofile.add']));
 
 $app->group('', function (RouteCollectorProxy $group) {
     $group->put('/displayprofile/{id}', ['\Xibo\Controller\DisplayProfile','edit'])->setName('displayProfile.edit');
