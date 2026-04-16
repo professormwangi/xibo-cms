@@ -21,10 +21,14 @@
  */
 namespace Xibo\Controller;
 
+use Psr\Http\Message\ResponseInterface;
 use Slim\Http\Response as Response;
 use Slim\Http\ServerRequest as Request;
 use Xibo\Factory\TransitionFactory;
 use Xibo\Support\Exception\AccessDeniedException;
+use Xibo\Support\Exception\ControllerNotImplemented;
+use Xibo\Support\Exception\GeneralException;
+use Xibo\Support\Exception\NotFoundException;
 
 /**
  * Class Transition
@@ -47,76 +51,69 @@ class Transition extends Base
     }
 
     /**
-     * No display page functionaility
      * @param Request $request
      * @param Response $response
-     * @return \Psr\Http\Message\ResponseInterface|Response
-     * @throws \Xibo\Support\Exception\ControllerNotImplemented
-     * @throws \Xibo\Support\Exception\GeneralException
+     * @return ResponseInterface|Response
+     * @throws ControllerNotImplemented
+     * @throws GeneralException
      */
-    function displayPage(Request $request, Response $response)
+    public function grid(Request $request, Response $response): Response|ResponseInterface
     {
-        $this->getState()->template = 'transition-page';
+        $sanitizedQueryParams = $this->getSanitizer($request->getQueryParams());
 
-        return $this->render($request, $response);
+        $transitionSortQuery = $this->gridRenderSort(
+            $sanitizedQueryParams,
+            $this->isJson($request),
+            'transition'
+        );
+        $transitionFilterQuery = $this->getTransitionFilterQuery($sanitizedQueryParams);
+
+        $transitions = $this->transitionFactory->query($transitionSortQuery, $transitionFilterQuery);
+
+        foreach ($transitions as $transition) {
+            $transition->setUnmatchedProperty('userPermissions', $this->getUser()->getPermission($transition));
+        }
+
+        return $response
+            ->withStatus(200)
+            ->withHeader('X-Total-Count', $this->transitionFactory->countLast())
+            ->withJson($transitions);
     }
 
     /**
      * @param Request $request
      * @param Response $response
-     * @return \Psr\Http\Message\ResponseInterface|Response
-     * @throws \Xibo\Support\Exception\ControllerNotImplemented
-     * @throws \Xibo\Support\Exception\GeneralException
+     * @param int $id
+     * @return Response|ResponseInterface
+     * @throws NotFoundException
+     * @throws \Xibo\Support\Exception\InvalidArgumentException
      */
-    public function grid(Request $request, Response $response)
+    public function searchById(Request $request, Response $response, int $id): Response|ResponseInterface
     {
-        $sanitizedQueryParams = $this->getSanitizer($request->getQueryParams());
+        $transition = $this->transitionFactory->getById($id);
 
-        $filter = [
-            'transition' => $sanitizedQueryParams->getString('transition'),
-            'code' => $sanitizedQueryParams->getString('code'),
-            'availableAsIn' => $sanitizedQueryParams->getInt('availableAsIn'),
-            'availableAsOut' => $sanitizedQueryParams->getInt('availableAsOut')
-        ];
+        $transition->setUnmatchedProperty('userPermissions', $this->getUser()->getPermission($transition));
 
-        $transitions = $this->transitionFactory->query($this->gridRenderSort($sanitizedQueryParams), $this->gridRenderFilter($filter, $sanitizedQueryParams));
-
-        foreach ($transitions as $transition) {
-            /* @var \Xibo\Entity\Transition $transition */
-
-            // If the module config is not locked, present some buttons
-            if ($this->getConfig()->getSetting('TRANSITION_CONFIG_LOCKED_CHECKB') != 1 && $this->getConfig()->getSetting('TRANSITION_CONFIG_LOCKED_CHECKB') != 'Checked' ) {
-
-                // Edit button
-                $transition->buttons[] = array(
-                    'id' => 'transition_button_edit',
-                    'url' => $this->urlFor($request,'transition.edit.form', ['id' => $transition->transitionId]),
-                    'text' => __('Edit')
-                );
-            }
-        }
-
-        $this->getState()->template = 'grid';
-        $this->getState()->recordsTotal = $this->transitionFactory->countLast();
-        $this->getState()->setData($transitions);
-
-        return $this->render($request, $response);
+        return $response->withStatus(200)->withJson($transition);
     }
-
     /**
      * Transition Edit Form
      * @param Request $request
      * @param Response $response
      * @param $id
-     * @return \Psr\Http\Message\ResponseInterface|Response
+     * @return ResponseInterface|Response
      * @throws AccessDeniedException
-     * @throws \Xibo\Support\Exception\ControllerNotImplemented
-     * @throws \Xibo\Support\Exception\GeneralException
-     * @throws \Xibo\Support\Exception\NotFoundException
+     * @throws ControllerNotImplemented
+     * @throws GeneralException
+     * @throws NotFoundException
      */
-    public function editForm(Request $request, Response $response, $id)
+    public function editForm(Request $request, Response $response, $id): Response|ResponseInterface
     {
-        if ($this->getConfig()->getSetting('TRANSITION_CONFIG_LOCKED_CHECKB') == 1 || $this->getConfig()->getSetting('TRANSITION_CONFIG_LOCKED_CHECKB') == 'Checked') {
+        // TODO: Remove this once the layout editor is updated
+        if (
+            $this->getConfig()->getSetting('TRANSITION_CONFIG_LOCKED_CHECKB') == 1 ||
+            $this->getConfig()->getSetting('TRANSITION_CONFIG_LOCKED_CHECKB') == 'Checked'
+        ) {
             throw new AccessDeniedException(__('Transition Config Locked'));
         }
 
@@ -135,15 +132,18 @@ class Transition extends Base
      * @param Request $request
      * @param Response $response
      * @param $id
-     * @return \Psr\Http\Message\ResponseInterface|Response
+     * @return ResponseInterface|Response
      * @throws AccessDeniedException
-     * @throws \Xibo\Support\Exception\ControllerNotImplemented
-     * @throws \Xibo\Support\Exception\GeneralException
-     * @throws \Xibo\Support\Exception\NotFoundException
+     * @throws ControllerNotImplemented
+     * @throws GeneralException
+     * @throws NotFoundException
      */
-    public function edit(Request $request, Response $response, $id)
+    public function edit(Request $request, Response $response, $id): Response|ResponseInterface
     {
-        if ($this->getConfig()->getSetting('TRANSITION_CONFIG_LOCKED_CHECKB') == 1 || $this->getConfig()->getSetting('TRANSITION_CONFIG_LOCKED_CHECKB') == 'Checked') {
+        if (
+            $this->getConfig()->getSetting('TRANSITION_CONFIG_LOCKED_CHECKB') == 1 ||
+            $this->getConfig()->getSetting('TRANSITION_CONFIG_LOCKED_CHECKB') == 'Checked'
+        ) {
             throw new AccessDeniedException(__('Transition Config Locked'));
         }
 
@@ -161,5 +161,20 @@ class Transition extends Base
         ]);
 
         return $this->render($request, $response);
+    }
+
+    /**
+     * Get the transition filters
+     * @param $sanitizedQueryParams
+     * @return array
+     */
+    private function getTransitionFilterQuery($sanitizedQueryParams): array
+    {
+        return $this->gridRenderFilter([
+            'transition' => $sanitizedQueryParams->getString('transition'),
+            'code' => $sanitizedQueryParams->getString('code'),
+            'availableAsIn' => $sanitizedQueryParams->getInt('availableAsIn'),
+            'availableAsOut' => $sanitizedQueryParams->getInt('availableAsOut')
+        ], $sanitizedQueryParams);
     }
 }

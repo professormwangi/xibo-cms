@@ -588,6 +588,7 @@ $app->group('', function (RouteCollectorProxy $group) {
 // Transition
 //
 $app->get('/transition', ['\Xibo\Controller\Transition','grid'])->setName('transition.search');
+$app->get('/transition/{id}', ['\Xibo\Controller\Transition','searchById'])->setName('transition.search.id');
 $app->put('/transition/{id}', ['\Xibo\Controller\Transition','edit'])
     ->addMiddleware(new \Xibo\Middleware\FeatureAuth($app->getContainer(), ['transition.view']))
     ->setName('transition.edit');

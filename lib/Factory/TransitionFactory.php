@@ -46,7 +46,7 @@ class TransitionFactory extends BaseFactory
      * @return Transition
      * @throws NotFoundException
      */
-    public function getById($transitionId)
+    public function getById(int $transitionId): Transition
     {
         $transitions = $this->query(null, ['transitionId' => $transitionId]);
 
@@ -62,7 +62,7 @@ class TransitionFactory extends BaseFactory
      * @return Transition
      * @throws NotFoundException
      */
-    public function getByCode($code)
+    public function getByCode(string $code): Transition
     {
         $transitions = $this->query(null, ['code' => $code]);
 
@@ -77,7 +77,7 @@ class TransitionFactory extends BaseFactory
      * @param string $type
      * @return array[Transition]
      */
-    public function getEnabledByType($type)
+    public function getEnabledByType(string $type): array
     {
         $filter = [];
 
@@ -91,11 +91,11 @@ class TransitionFactory extends BaseFactory
     }
 
     /**
-     * @param array $sortOrder
+     * @param array|null $sortOrder
      * @param array $filterBy
      * @return array[Transition]
      */
-    public function query($sortOrder = null, $filterBy = [])
+    public function query(array $sortOrder = null, array $filterBy = []): array
     {
         $entries = [];
         $params = [];
@@ -135,10 +135,22 @@ class TransitionFactory extends BaseFactory
         }
 
         // Sorting?
-        if (is_array($sortOrder)) {
-            $sql .= 'ORDER BY ' . implode(',', $sortOrder);
-        }
+        $allowedColumns = [
+            'transitionId',
+            'transition',
+            'hasDuration',
+            'hasDirection',
+            'availableAsIn',
+            'availableAsOut'
+        ];
 
+        $sortOrder = $this->buildSortQuery(
+            $sortOrder,
+            $allowedColumns,
+            defaultSort: ['transition ASC']
+        );
+
+        $sql .= !empty($sortOrder) ? ' ORDER BY ' . implode(', ', $sortOrder) : '';
 
         foreach ($this->getStore()->select($sql, $params) as $row) {
             $entries[] = $this->createEmpty()->hydrate($row);
