@@ -24,11 +24,11 @@ import { useTranslation } from 'react-i18next';
 
 import { AndroidFields } from './fields/AndroidFields';
 import { ChromeOsFields } from './fields/ChromeOsFields';
-import { CHECKBOX_FIELDS_BY_TYPE } from './fields/fieldMetadata';
 import { getPictureSliderIndex, LgSsspFields } from './fields/LgSsspFields';
 import type { LockOptionsState, PictureOptionRow, TimerRow } from './fields/LgSsspFields';
 import { LinuxFields } from './fields/LinuxFields';
 import { WindowsFields } from './fields/WindowsFields';
+import { CHECKBOX_FIELDS_BY_TYPE } from './fields/fieldMetadata';
 
 import Checkbox from '@/components/ui/forms/Checkbox';
 import TextInput from '@/components/ui/forms/TextInput';
