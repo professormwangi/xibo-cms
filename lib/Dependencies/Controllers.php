@@ -481,11 +481,9 @@ class Controllers
             },
             '\Xibo\Controller\Schedule' => function (ContainerInterface $c) {
                 $controller = new \Xibo\Controller\Schedule(
-                    $c->get('session'),
                     $c->get('scheduleFactory'),
                     $c->get('displayGroupFactory'),
                     $c->get('campaignFactory'),
-                    $c->get('commandFactory'),
                     $c->get('displayFactory'),
                     $c->get('layoutFactory'),
                     $c->get('dayPartFactory'),

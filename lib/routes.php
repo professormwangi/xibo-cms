@@ -40,16 +40,17 @@ $app->post('/tfa', ['\Xibo\Controller\Login' , 'twoFactorAuthValidate'])->setNam
  * Schedule
  */
 $app->get('/schedule', ['\Xibo\Controller\Schedule','grid'])->setName('schedule.search');
-// ⚠️ Deprecated: This route will be removed in v5.0
-$app->get('/schedule/data/events', ['\Xibo\Controller\Schedule','eventData'])->setName('schedule.calendar.data');
 
 $app->get('/schedule/{id}/events', ['\Xibo\Controller\Schedule','eventList'])->setName('schedule.events');
+$app->get('/schedule/{id}', ['\Xibo\Controller\Schedule','searchById'])
+    ->add(new FeatureAuth($app->getContainer(), ['schedule.view']))
+    ->setName('schedule.search.id');
 
 $app->post('/schedule', ['\Xibo\Controller\Schedule','add'])
     ->add(new FeatureAuth($app->getContainer(), ['schedule.add']))
     ->setName('schedule.add');
 
-$app->group('', function(RouteCollectorProxy $group) {
+$app->group('', function (RouteCollectorProxy $group) {
     $group->put('/schedule/{id}', ['\Xibo\Controller\Schedule','edit'])
         ->setName('schedule.edit');
 
