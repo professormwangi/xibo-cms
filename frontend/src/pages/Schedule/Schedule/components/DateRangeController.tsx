@@ -1,0 +1,318 @@
+/*
+ * Copyright (C) 2026 Xibo Signage Ltd
+ *
+ * Xibo - Digital Signage - https://xibosignage.com
+ *
+ * This file is part of Xibo.
+ *
+ * Xibo is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * any later version.
+ *
+ * Xibo is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with Xibo.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import { Calendar, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+
+import Button from '@/components/ui/Button';
+import DatePicker from '@/components/ui/DatePicker';
+import { formatDateTime } from '@/utils/date';
+
+type ViewMode = 'day' | 'week' | 'month' | 'year' | 'custom' | 'always';
+
+interface DateRangeControllerProps {
+  onDateRangeChange: (fromDt: string | undefined, toDt: string | undefined) => void;
+}
+
+function startOfDay(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfDay(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+function startOfWeek(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfWeek(date: Date): Date {
+  const start = startOfWeek(date);
+  const d = new Date(start);
+  d.setDate(d.getDate() + 6);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+function startOfMonth(date: Date): Date {
+  const d = new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
+  return d;
+}
+
+function endOfMonth(date: Date): Date {
+  const d = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+  return d;
+}
+
+function startOfYear(date: Date): Date {
+  return new Date(date.getFullYear(), 0, 1, 0, 0, 0, 0);
+}
+
+function endOfYear(date: Date): Date {
+  return new Date(date.getFullYear(), 11, 31, 23, 59, 59, 999);
+}
+
+function computeRange(mode: ViewMode, date: Date): { from: Date; to: Date } | null {
+  if (mode === 'day') {
+    return { from: startOfDay(date), to: endOfDay(date) };
+  }
+  if (mode === 'week') {
+    return { from: startOfWeek(date), to: endOfWeek(date) };
+  }
+  if (mode === 'month') {
+    return { from: startOfMonth(date), to: endOfMonth(date) };
+  }
+  if (mode === 'year') {
+    return { from: startOfYear(date), to: endOfYear(date) };
+  }
+  return null;
+}
+
+function formatDateLabel(mode: ViewMode, date: Date, customFrom: string, customTo: string): string {
+  const fmt = (d: Date, opts: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat(undefined, opts).format(d);
+
+  if (mode === 'always') {
+    return 'Always';
+  }
+  if (mode === 'day') {
+    return fmt(date, { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  if (mode === 'week') {
+    const start = startOfWeek(date);
+    const end = endOfWeek(date);
+    const sameYear = start.getFullYear() === end.getFullYear();
+    const startStr = fmt(start, {
+      day: 'numeric',
+      month: 'short',
+      ...(!sameYear ? { year: 'numeric' } : {}),
+    });
+    const endStr = fmt(end, { day: 'numeric', month: 'short', year: 'numeric' });
+    return `${startStr} – ${endStr}`;
+  }
+  if (mode === 'month') {
+    return fmt(date, { month: 'long', year: 'numeric' });
+  }
+  if (mode === 'year') {
+    return String(date.getFullYear());
+  }
+  if (mode === 'custom') {
+    if (!customFrom || !customTo) {
+      return 'Select range';
+    }
+    const fromDate = new Date(customFrom);
+    const toDate = new Date(customTo);
+    const sameYear = fromDate.getFullYear() === toDate.getFullYear();
+    const fromStr = fmt(fromDate, {
+      day: 'numeric',
+      month: 'short',
+      ...(!sameYear ? { year: 'numeric' } : {}),
+    });
+    const toStr = fmt(toDate, { day: 'numeric', month: 'short', year: 'numeric' });
+    return `${fromStr} – ${toStr}`;
+  }
+  return '';
+}
+
+function addUnit(date: Date, mode: ViewMode, delta: number): Date {
+  const d = new Date(date);
+  if (mode === 'day') {
+    d.setDate(d.getDate() + delta);
+  } else if (mode === 'week') {
+    d.setDate(d.getDate() + delta * 7);
+  } else if (mode === 'month') {
+    d.setMonth(d.getMonth() + delta);
+  } else if (mode === 'year') {
+    d.setFullYear(d.getFullYear() + delta);
+  }
+  return d;
+}
+
+const VIEW_MODE_OPTIONS: { value: ViewMode; label: string }[] = [
+  { value: 'always', label: 'Always' },
+  { value: 'day', label: 'Day' },
+  { value: 'week', label: 'Week' },
+  { value: 'month', label: 'Month' },
+  { value: 'year', label: 'Year' },
+  { value: 'custom', label: 'Custom' },
+];
+
+export function DateRangeController({ onDateRangeChange }: DateRangeControllerProps) {
+  const { t } = useTranslation();
+
+  const [viewMode, setViewMode] = useState<ViewMode>('day');
+  const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  const [showViewDropdown, setShowViewDropdown] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const datePickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowViewDropdown(false);
+      }
+      if (datePickerRef.current && !datePickerRef.current.contains(e.target as Node)) {
+        setShowDatePicker(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (viewMode === 'always') {
+      onDateRangeChange(undefined, undefined);
+      return;
+    }
+    if (viewMode === 'custom') {
+      if (customFrom && customTo) {
+        onDateRangeChange(formatDateTime(new Date(customFrom)), formatDateTime(new Date(customTo)));
+      } else {
+        onDateRangeChange(undefined, undefined);
+      }
+      return;
+    }
+    const range = computeRange(viewMode, currentDate);
+    if (range) {
+      onDateRangeChange(formatDateTime(range.from), formatDateTime(range.to));
+    }
+  }, [viewMode, currentDate, customFrom, customTo]);
+
+  const handlePrev = () => {
+    setCurrentDate((d) => addUnit(d, viewMode, -1));
+  };
+
+  const handleNext = () => {
+    setCurrentDate((d) => addUnit(d, viewMode, 1));
+  };
+
+  const handleToday = () => {
+    setCurrentDate(new Date());
+  };
+
+  const handleSelectViewMode = (mode: ViewMode) => {
+    setViewMode(mode);
+    setShowViewDropdown(false);
+    if (mode === 'custom') {
+      setShowDatePicker(true);
+    } else {
+      setCustomFrom('');
+      setCustomTo('');
+    }
+  };
+
+  const currentLabel = formatDateLabel(viewMode, currentDate, customFrom, customTo);
+
+  return (
+    <div className="w-full lg:flex-1 md:min-w-0 flex items-center gap-3 flex-wrap">
+      <div className="relative" ref={dropdownRef}>
+        <Button
+          rightIcon={ChevronDown}
+          variant="tertiary"
+          onClick={() => setShowViewDropdown((prev) => !prev)}
+        >
+          {t(VIEW_MODE_OPTIONS.find((o) => o.value === viewMode)?.label ?? 'Day')}
+        </Button>
+        {showViewDropdown && (
+          <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-md min-w-27.5">
+            {VIEW_MODE_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => handleSelectViewMode(option.value)}
+                className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg ${
+                  viewMode === option.value ? 'font-semibold text-xibo-blue-600' : 'text-gray-700'
+                }`}
+              >
+                {t(option.label)}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {viewMode !== 'custom' && viewMode !== 'always' && (
+        <>
+          <Button variant="tertiary" className="text-xibo-blue-600" onClick={handleToday}>
+            {t('Today')}
+          </Button>
+          <Button variant="tertiary" className="text-xibo-blue-600" onClick={handlePrev}>
+            <ChevronLeft />
+          </Button>
+          <Button variant="tertiary" className="text-xibo-blue-600" onClick={handleNext}>
+            <ChevronRight />
+          </Button>
+        </>
+      )}
+
+      {viewMode === 'custom' && (
+        <div className="relative" ref={datePickerRef}>
+          <Button
+            rightIcon={Calendar}
+            variant="tertiary"
+            onClick={() => setShowDatePicker((prev) => !prev)}
+          />
+          {showDatePicker && (
+            <div className="absolute left-0 top-full mt-1 z-50 shadow-lg rounded-lg border border-gray-200 bg-white">
+              <DatePicker
+                mode="range"
+                value={
+                  customFrom && customTo
+                    ? { from: new Date(customFrom), to: new Date(customTo) }
+                    : undefined
+                }
+                onApply={(result) => {
+                  if (result.type === 'range') {
+                    const toLocalISO = (d: Date) => {
+                      const p = (n: number) => String(n).padStart(2, '0');
+                      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+                    };
+                    setCustomFrom(toLocalISO(result.from));
+                    setCustomTo(toLocalISO(result.to));
+                    setViewMode('custom');
+                  }
+                  setShowDatePicker(false);
+                }}
+                onCancel={() => setShowDatePicker(false)}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="text-base font-semibold leading-7.5">{currentLabel}</div>
+    </div>
+  );
+}

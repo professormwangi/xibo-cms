@@ -58,6 +58,9 @@ $app->group('', function(RouteCollectorProxy $group) {
 
     $group->delete('/schedulerecurrence/{id}', ['\Xibo\Controller\Schedule','deleteRecurrence'])
         ->setName('schedule.recurrence.delete');
+
+    $group->post('/schedule/copy/{id}', ['\Xibo\Controller\Schedule','copy'])
+        ->setName('schedule.copy');
 })->add(new FeatureAuth($app->getContainer(), ['schedule.modify']));
 
 /**

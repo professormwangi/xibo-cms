@@ -2116,6 +2116,45 @@ class Schedule extends Base
     }
 
     /**
+     * Copy a Schedule Event
+     * @param Request $request
+     * @param Response $response
+     * @param $id
+     * @return \Psr\Http\Message\ResponseInterface|Response
+     * @throws AccessDeniedException
+     * @throws GeneralException
+     * @throws NotFoundException
+     * @throws ControllerNotImplemented
+     */
+    public function copy(Request $request, Response $response, $id)
+    {
+        $sanitizedParams = $this->getSanitizer($request->getParams());
+
+        $originalSchedule = $this->scheduleFactory->getById($id);
+        $originalSchedule->load();
+
+        if (!$this->isEventEditable($originalSchedule)) {
+            throw new AccessDeniedException();
+        }
+
+        $schedule = clone $originalSchedule;
+        $schedule->name = $sanitizedParams->getString('name');
+        $schedule->userId = $this->getUser()->userId;
+
+        $schedule->setDisplayNotifyService($this->displayFactory->getDisplayNotifyService());
+
+        if ($schedule->campaignId != null) {
+            $schedule->setCampaignFactory($this->campaignFactory);
+        }
+
+        $schedule->save();
+
+        return $response
+            ->withStatus(201)
+            ->withJson($schedule);
+    }
+
+    /**
      * Is this event editable?
      * @param \Xibo\Entity\Schedule $event
      * @return bool
@@ -2420,12 +2459,13 @@ class Schedule extends Base
                 Carbon::createFromTimestamp($event->toDt)->format(DateFormatHelper::getSystemFormat())
             );
 
-            if ($this->isApi($request)) {
+            $event->setUnmatchedProperty('isEditable', $this->isEventEditable($event));
+
+            if ($this->isApi($request) || $this->isJson($request)) {
                 continue;
             }
 
             $event->includeProperty('buttons');
-            $event->setUnmatchedProperty('isEditable', $this->isEventEditable($event));
             if ($this->isEventEditable($event)) {
                 $event->buttons[] = [
                     'id' => 'schedule_button_edit',
