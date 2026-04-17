@@ -330,8 +330,6 @@ export default function EditDisplayProfileModal({
   const setBool = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     set(key, e.target.checked ? 1 : 0);
 
-  // If you change the save logic or validation here, update
-  // __tests__/DisplayProfileBaseForm.test-helper.tsx to match.
   const handleSave = () => {
     if (!data) {
       return;
