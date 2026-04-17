@@ -23,34 +23,46 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
-import { vi } from 'vitest';
 
-import Displays from '../Displays';
+import Displays from '../Displays/Displays';
 
+import { UserProvider } from '@/context/UserContext';
 import type { Display } from '@/types/display';
+import type { User } from '@/types/user';
 
-// Mock all API calls so no HTTP requests leave the test process
-vi.mock('@/services/displayApi', () => ({
-  fetchDisplays: vi.fn(),
-  updateDisplay: vi.fn(),
-  deleteDisplay: vi.fn(),
-  authoriseDisplay: vi.fn(),
-}));
+// ─── Mock user ────────────────────────────────────────────────────────────────
 
-// Mock translations to just return the key — keeps assertions straightforward
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
-}));
+const mockUser: User = {
+  userId: 1,
+  userName: 'TestUser',
+  userTypeId: 1,
+  groupId: 1,
+  features: {},
+  settings: {
+    defaultTimezone: 'UTC',
+    defaultLanguage: 'en',
+    DATE_FORMAT_JS: 'DD/MM/YYYY',
+    TIME_FORMAT_JS: 'HH:mm',
+  },
+};
 
-// Provide a fresh QueryClient and Router for each test render
+// ─── Render helper ────────────────────────────────────────────────────────────
+
+// Provide a fresh QueryClient, UserProvider, and Router for each test render
 export const renderWithClient = (ui: React.ReactElement = <Displays />) => {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
 
+  // Pre-seed the displays_page preference so useTableState hydrates immediately,
+  // which makes isHydrated=true and allows the DataTable to render.
+  queryClient.setQueryData(['userPref', 'displays_page'], null);
+
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>{ui}</MemoryRouter>
+      <UserProvider initialUser={mockUser}>
+        <MemoryRouter>{ui}</MemoryRouter>
+      </UserProvider>
     </QueryClientProvider>,
   );
 };
@@ -60,6 +72,7 @@ export const renderWithClient = (ui: React.ReactElement = <Displays />) => {
 export const mockDisplays: Display[] = [
   {
     displayId: 1,
+    displayGroupId: 10,
     display: 'Display 1',
     description: 'First display',
     licensed: 1,               // authorised
@@ -73,6 +86,7 @@ export const mockDisplays: Display[] = [
   },
   {
     displayId: 2,
+    displayGroupId: 20,
     display: 'Display 2',
     description: 'Second display',
     licensed: 0,               // unauthorised

@@ -19,15 +19,133 @@
  * along with Xibo.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-import Displays from '../Displays';
+import Displays from '../Displays/Displays';
 
 import { mockDisplays, renderWithClient } from './Setup';
 
-import { deleteDisplay, fetchDisplays } from '@/services/displayApi';
+import { deleteDisplay, fetchDisplays } from '@/services/displaysApi';
+
+vi.mock('@/services/displaysApi', () => ({
+  fetchDisplays: vi.fn(),
+  updateDisplay: vi.fn(),
+  deleteDisplay: vi.fn(),
+  toggleDisplayAuthorised: vi.fn(),
+  fetchDisplayLocales: vi.fn().mockResolvedValue([]),
+  fetchDisplayVenues: vi.fn().mockResolvedValue([]),
+  checkLicence: vi.fn(),
+  collectNow: vi.fn(),
+  moveCms: vi.fn(),
+  moveCmsCancel: vi.fn(),
+  purgeAll: vi.fn(),
+  requestScreenShot: vi.fn(),
+  sendCommand: vi.fn(),
+  setBandwidthLimitMultiple: vi.fn(),
+  setDefaultLayout: vi.fn(),
+  triggerWebhook: vi.fn(),
+  wakeOnLan: vi.fn(),
+}));
+vi.mock('@/services/displayProfileApi', () => ({
+  fetchDisplayProfile: vi.fn().mockResolvedValue({ rows: [], totalCount: 0 }),
+  fetchDisplayProfileById: vi.fn().mockResolvedValue(null),
+}));
+vi.mock('@/services/daypartApi', () => ({
+  fetchDaypart: vi.fn().mockResolvedValue({ rows: [] }),
+}));
+vi.mock('@/services/playerSoftwareApi', () => ({
+  fetchPlayerSoftware: vi.fn().mockResolvedValue({ rows: [] }),
+}));
+vi.mock('@/services/layoutsApi', () => ({
+  fetchLayouts: vi.fn().mockResolvedValue({ rows: [] }),
+}));
+vi.mock('@/services/displayGroupApi', () => ({
+  fetchDisplayGroups: vi.fn().mockResolvedValue({ rows: [], totalCount: 0 }),
+}));
+vi.mock('@/services/folderApi', () => ({
+  selectFolder: vi.fn(),
+  createFolder: vi.fn(),
+  deleteFolder: vi.fn(),
+  editFolder: vi.fn(),
+  moveFolder: vi.fn(),
+  fetchFolderTree: vi.fn().mockResolvedValue([]),
+  fetchFolderById: vi.fn().mockResolvedValue(null),
+  searchFolders: vi.fn().mockResolvedValue([]),
+  fetchContextButtons: vi.fn().mockResolvedValue([]),
+}));
+vi.mock('@/services/userApi', () => ({
+  fetchUserPreference: vi.fn().mockResolvedValue(null),
+  saveUserPreference: vi.fn().mockResolvedValue(undefined),
+  saveUserPreferencesBulk: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock('../Displays/components/DisplayMap', () => ({ default: () => null }));
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+vi.mock('@/components/ui/modals/Modal', () => ({
+  default: ({
+    isOpen = true,
+    title,
+    children,
+    actions,
+  }: {
+    isOpen?: boolean;
+    title?: string;
+    children?: React.ReactNode;
+    actions?: Array<{ label: string; onClick?: () => void; disabled?: boolean }>;
+    onClose: () => void;
+  }) => {
+    if (!isOpen) return null;
+    return (
+      <div role="dialog" aria-label={title}>
+        {title && <h2>{title}</h2>}
+        {children}
+        <div>
+          {actions?.map((action, i) => (
+            <button key={i} onClick={action.onClick} disabled={action.disabled}>
+              {action.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  },
+}));
+// Stub the floating-ui dropdown so all action buttons are always visible in the DOM.
+// useClick from @floating-ui/react does not fire in jsdom.
+vi.mock('@/components/ui/table/DataTableRowActions', () => ({
+  default: ({
+    row,
+    actions,
+  }: {
+    row: unknown;
+    actions: Array<{ label?: string; onClick?: (r: unknown) => void; isSeparator?: boolean }>;
+  }) => (
+    <div>
+      <button aria-label="More actions" />
+      {actions
+        .filter((a) => !a.isSeparator && a.label)
+        .map((action, i) => (
+          <button key={i} onClick={() => action.onClick?.(row)}>
+            {action.label}
+          </button>
+        ))}
+    </div>
+  ),
+}));
+
+// With the DataTableRowActions mock, all action buttons are always visible in the DOM.
+// For actions in every row (e.g. Delete), getAllByRole with rowIndex picks the correct row.
+async function openDropdownAndClick(user: ReturnType<typeof userEvent.setup>, rowIndex: number, actionLabel: string) {
+  const buttons = screen.getAllByRole('button', { name: actionLabel });
+  // If the action appears in every row, buttons[rowIndex] selects the right row.
+  // If the action is unique to one row, buttons[0] is the only match — rowIndex fallback handles it.
+  await user.click(buttons[rowIndex] ?? buttons[0]!);
+}
 
 describe('Displays Page - Delete and Error Handling', () => {
   beforeEach(() => {
@@ -38,14 +156,13 @@ describe('Displays Page - Delete and Error Handling', () => {
     });
   });
 
-  it('opens the Delete modal when clicking the Delete button on a row', async () => {
+  it('opens the Delete modal when clicking Delete in the row actions dropdown', async () => {
     const user = userEvent.setup();
     renderWithClient(<Displays />);
 
     await waitFor(() => expect(screen.getByText('Display 1')).toBeInTheDocument());
 
-    const deleteButtons = screen.getAllByRole('button', { name: 'Delete' });
-    await user.click(deleteButtons[0]!);
+    await openDropdownAndClick(user, 0, 'Delete');
 
     expect(screen.getByRole('heading', { name: 'Delete Display?' })).toBeInTheDocument();
   });
@@ -56,7 +173,7 @@ describe('Displays Page - Delete and Error Handling', () => {
 
     await waitFor(() => expect(screen.getByText('Display 1')).toBeInTheDocument());
 
-    await user.click(screen.getAllByRole('button', { name: 'Delete' })[0]!);
+    await openDropdownAndClick(user, 0, 'Delete');
 
     // The modal message should reference the target display name
     expect(screen.getByRole('dialog')).toHaveTextContent('Display 1');
@@ -69,7 +186,7 @@ describe('Displays Page - Delete and Error Handling', () => {
     renderWithClient(<Displays />);
     await waitFor(() => expect(screen.getByText('Display 1')).toBeInTheDocument());
 
-    await user.click(screen.getAllByRole('button', { name: 'Delete' })[0]!);
+    await openDropdownAndClick(user, 0, 'Delete');
     await user.click(screen.getByRole('button', { name: 'Yes, Delete' }));
 
     await waitFor(() => {
@@ -84,7 +201,7 @@ describe('Displays Page - Delete and Error Handling', () => {
     renderWithClient(<Displays />);
     await waitFor(() => expect(screen.getByText('Display 1')).toBeInTheDocument());
 
-    await user.click(screen.getAllByRole('button', { name: 'Delete' })[0]!);
+    await openDropdownAndClick(user, 0, 'Delete');
     await user.click(screen.getByRole('button', { name: 'Yes, Delete' }));
 
     await waitFor(() => {
@@ -104,7 +221,7 @@ describe('Displays Page - Delete and Error Handling', () => {
     renderWithClient(<Displays />);
     await waitFor(() => expect(screen.getByText('Display 1')).toBeInTheDocument());
 
-    await user.click(screen.getAllByRole('button', { name: 'Delete' })[0]!);
+    await openDropdownAndClick(user, 0, 'Delete');
     await user.click(screen.getByRole('button', { name: 'Yes, Delete' }));
 
     await waitFor(() => {
@@ -127,7 +244,7 @@ describe('Displays Page - Delete and Error Handling', () => {
 
     await waitFor(() => expect(screen.getByText('Display 1')).toBeInTheDocument());
 
-    await user.click(screen.getAllByRole('button', { name: 'Delete' })[0]!);
+    await openDropdownAndClick(user, 0, 'Delete');
     expect(screen.getByRole('heading', { name: 'Delete Display?' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
@@ -147,8 +264,7 @@ describe('Displays Page - Delete and Error Handling', () => {
     renderWithClient(<Displays />);
     await waitFor(() => expect(screen.getByText('Display 2')).toBeInTheDocument());
 
-    const deleteButtons = screen.getAllByRole('button', { name: 'Delete' });
-    await user.click(deleteButtons[1]!);
+    await openDropdownAndClick(user, 1, 'Delete');
     await user.click(screen.getByRole('button', { name: 'Yes, Delete' }));
 
     await waitFor(() => {
@@ -169,7 +285,7 @@ describe('Displays Page - Delete and Error Handling', () => {
     renderWithClient(<Displays />);
     await waitFor(() => expect(screen.getByText('Display 1')).toBeInTheDocument());
 
-    await user.click(screen.getAllByRole('button', { name: 'Delete' })[0]!);
+    await openDropdownAndClick(user, 0, 'Delete');
     await user.click(screen.getByRole('button', { name: 'Yes, Delete' }));
 
     await waitFor(() => {
@@ -181,7 +297,7 @@ describe('Displays Page - Delete and Error Handling', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 
     // Reopen modal — error should be gone
-    await user.click(screen.getAllByRole('button', { name: 'Delete' })[0]!);
+    await openDropdownAndClick(user, 0, 'Delete');
     expect(
       screen.queryByText('Cannot delete display. It is currently in use.'),
     ).not.toBeInTheDocument();
