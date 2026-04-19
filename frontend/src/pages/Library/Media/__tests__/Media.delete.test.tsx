@@ -32,6 +32,23 @@ import { testQueryClient } from '@/setupTests';
 // Module mocks
 // -----------------------------------------------------------------------------
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key, i18n: { changeLanguage: vi.fn() } }),
+  Trans: ({ children }: { children: React.ReactNode }) => children,
+}));
+vi.mock('@/services/folderApi', () => ({
+  fetchFolderById: vi.fn().mockResolvedValue({ id: 1, text: 'Root' }),
+  fetchFolderTree: vi.fn().mockResolvedValue([]),
+  searchFolders: vi.fn().mockResolvedValue([]),
+  fetchContextButtons: vi.fn().mockResolvedValue({ create: true }),
+  selectFolder: vi.fn().mockResolvedValue({ success: true }),
+}));
+vi.mock('@/services/userApi', () => ({
+  fetchUserPreference: vi.fn().mockResolvedValue(null),
+  saveUserPreference: vi.fn().mockResolvedValue(undefined),
+  fetchUsers: vi.fn().mockResolvedValue([]),
+}));
+vi.mock('@/components/ui/modals/Modal');
 vi.mock('@/pages/Library/Media/hooks/useMediaFilterOptions', () => ({
   useMediaFilterOptions: vi.fn().mockReturnValue({ filterOptions: [], isLoading: false }),
 }));
@@ -42,21 +59,6 @@ vi.mock('@/services/mediaApi', () => ({
   updateMedia: vi.fn(),
   uploadThumbnail: vi.fn(),
   deleteMedia: vi.fn(),
-}));
-vi.mock('@/services/folderApi', () => ({
-  fetchFolderById: vi.fn().mockResolvedValue({ id: 1, text: 'Root' }),
-  fetchFolderTree: vi.fn().mockResolvedValue([]),
-  searchFolders: vi.fn().mockResolvedValue([]),
-  fetchContextButtons: vi.fn().mockResolvedValue({ create: true }),
-  selectFolder: vi.fn(),
-}));
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key, i18n: { changeLanguage: vi.fn() } }),
-  Trans: ({ children }: { children: React.ReactNode }) => children,
-}));
-vi.mock('@/services/userApi', () => ({
-  fetchUserPreference: vi.fn().mockResolvedValue(null),
-  saveUserPreference: vi.fn().mockResolvedValue(undefined),
 }));
 
 // =============================================================================

@@ -42,6 +42,7 @@ import {
 } from './mediaTestUtils';
 
 import { fetchFolderTree, selectFolder } from '@/services/folderApi';
+import { testQueryClient } from '@/setupTests';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { changeLanguage: vi.fn() } }),
@@ -50,6 +51,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('@/services/userApi', () => ({
   fetchUserPreference: vi.fn().mockResolvedValue(null),
   saveUserPreference: vi.fn().mockResolvedValue(undefined),
+  fetchUsers: vi.fn().mockResolvedValue([]),
 }));
 vi.mock('@/components/ui/modals/Modal');
 vi.mock('@/services/folderApi', () => ({
@@ -57,7 +59,7 @@ vi.mock('@/services/folderApi', () => ({
   fetchFolderTree: vi.fn().mockResolvedValue([]),
   searchFolders: vi.fn().mockResolvedValue([]),
   fetchContextButtons: vi.fn().mockResolvedValue({ create: true }),
-  selectFolder: vi.fn(),
+  selectFolder: vi.fn().mockResolvedValue({ success: true }),
 }));
 vi.mock('@/pages/Library/Media/hooks/useMediaFilterOptions', () => ({
   useMediaFilterOptions: vi.fn().mockReturnValue({ filterOptions: [], isLoading: false }),
@@ -72,6 +74,7 @@ vi.mock('../hooks/useMediaData', () => ({
 
 describe('Media page – folder permissions', () => {
   beforeEach(() => {
+    testQueryClient.clear();
     vi.clearAllMocks();
     mockMediaData(ONE_MEDIA_ITEM);
   });

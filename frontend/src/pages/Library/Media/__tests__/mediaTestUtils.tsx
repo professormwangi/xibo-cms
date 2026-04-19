@@ -33,6 +33,8 @@ import { useMediaData } from '../hooks/useMediaData';
 
 import { UploadProvider } from '@/context/UploadContext';
 import { UserProvider } from '@/context/UserContext';
+import { fetchMedia, updateMedia } from '@/services/mediaApi';
+import type { FetchMediaResponse } from '@/services/mediaApi';
 import { testQueryClient } from '@/setupTests';
 import type { Folder } from '@/types/folder';
 import type { Media as MediaItem } from '@/types/media';
@@ -197,6 +199,25 @@ export type UseMediaReturn = ReturnType<typeof useMediaData>;
 
 export const mockMediaData = (overrides: unknown) => {
   vi.mocked(useMediaData).mockReturnValue(overrides as UseMediaReturn);
+};
+
+// ---------------------------------------------------------------------------
+// Service-level mock helpers
+//
+// Use these when you want real React Query to run in your test (action tests,
+// save/delete flows that must exercise query invalidation and table refresh).
+// Use mockMediaData() instead when you only need to assert on hook arguments
+// (search, filter, pagination tests).
+// ---------------------------------------------------------------------------
+
+// Makes fetchMedia return the data you provide.
+export const mockFetchMedia = (rawData: FetchMediaResponse) => {
+  vi.mocked(fetchMedia).mockResolvedValue(rawData);
+};
+
+// Makes updateMedia return the media item you provide.
+export const mockUpdateMedia = (media: MediaItem) => {
+  vi.mocked(updateMedia).mockResolvedValue(media);
 };
 
 // openEditModal: waits for the media row to appear (DataTable hydrated), then

@@ -27,7 +27,6 @@ import { vi, beforeEach } from 'vitest';
 
 import { mockMediaData, renderMediaPage } from './mediaTestUtils';
 
-import type * as FolderApi from '@/services/folderApi';
 import { testQueryClient } from '@/setupTests';
 
 vi.mock('react-i18next', () => ({
@@ -37,28 +36,16 @@ vi.mock('react-i18next', () => ({
 vi.mock('@/services/userApi', () => ({
   fetchUserPreference: vi.fn().mockResolvedValue(null),
   saveUserPreference: vi.fn().mockResolvedValue(undefined),
+  fetchUsers: vi.fn().mockResolvedValue([]),
 }));
 vi.mock('@/components/ui/modals/Modal');
-vi.mock('@/services/folderApi', async (importOriginal) => {
-  const actual = await importOriginal<typeof FolderApi>();
-  return {
-    ...actual,
-    fetchContextButtons: vi.fn().mockResolvedValue({ create: true }),
-    selectFolder: vi.fn(),
-    fetchFolderById: vi.fn().mockResolvedValue({
-      id: 1,
-      text: 'Root',
-      type: 'root',
-      parentId: 0,
-      isRoot: 1,
-      children: null,
-      ownerId: 1,
-      ownerName: 'MockUser',
-    }),
-    fetchFolderTree: vi.fn().mockResolvedValue([]),
-    searchFolders: vi.fn().mockResolvedValue([]),
-  };
-});
+vi.mock('@/services/folderApi', () => ({
+  fetchFolderById: vi.fn().mockResolvedValue({ id: 1, text: 'Root' }),
+  fetchFolderTree: vi.fn().mockResolvedValue([]),
+  searchFolders: vi.fn().mockResolvedValue([]),
+  fetchContextButtons: vi.fn().mockResolvedValue({ create: true }),
+  selectFolder: vi.fn().mockResolvedValue({ success: true }),
+}));
 vi.mock('@/hooks/useDebounce');
 vi.mock('@/pages/Library/Media/hooks/useMediaFilterOptions');
 vi.mock('../hooks/useMediaData');

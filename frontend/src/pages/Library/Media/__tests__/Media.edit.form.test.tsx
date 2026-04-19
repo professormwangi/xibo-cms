@@ -21,7 +21,7 @@
 
 import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 import type React from 'react';
-import { test, vi, beforeEach } from 'vitest';
+import { test, vi, beforeEach, describe, expect } from 'vitest';
 
 import { mockEditMedia, mockMediaData, openEditModal, renderMediaPage } from './mediaTestUtils';
 
@@ -49,7 +49,7 @@ vi.mock('@/services/folderApi', () => ({
   fetchFolderTree: vi.fn().mockResolvedValue([]),
   searchFolders: vi.fn().mockResolvedValue([]),
   fetchContextButtons: vi.fn().mockResolvedValue({ create: true }),
-  selectFolder: vi.fn(),
+  selectFolder: vi.fn().mockResolvedValue({ success: true }),
 }));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { changeLanguage: vi.fn() } }),
@@ -58,11 +58,195 @@ vi.mock('react-i18next', () => ({
 vi.mock('@/services/userApi', () => ({
   fetchUserPreference: vi.fn().mockResolvedValue(null),
   saveUserPreference: vi.fn().mockResolvedValue(undefined),
+  fetchUsers: vi.fn().mockResolvedValue([]),
 }));
 
 // =============================================================================
 // Tests
 // =============================================================================
+
+describe('Edit Media — form state', () => {
+  beforeEach(() => {
+    testQueryClient.clear();
+    vi.clearAllMocks();
+    vi.mocked(updateMedia).mockResolvedValue({ ...mockEditMedia });
+    mockMediaData({
+      data: { rows: [mockEditMedia], totalCount: 1 },
+      isFetching: false,
+      isError: false,
+      error: null,
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Edit the name field, click Cancel, then reopen the modal.
+  // The name should be back to the original — Cancel must throw away any
+  // changes the user made, not keep them for the next time the modal opens.
+  // ---------------------------------------------------------------------------
+  test('Cancel after editing discards changes — modal reopens with original values', async () => {
+    renderMediaPage();
+    await openEditModal();
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'changed-name.png' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    const dialog = await openEditModal();
+    expect(within(dialog).getByLabelText('Name')).toHaveValue(mockEditMedia.name);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Press Escape while the modal is open and check it closes.
+  // This is the keyboard equivalent of clicking Cancel.
+  // ---------------------------------------------------------------------------
+  test('Pressing Escape closes the modal', async () => {
+    renderMediaPage();
+    const dialog = await openEditModal();
+
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+
+    expect(screen.queryByRole('dialog', { name: 'Edit Media' })).not.toBeInTheDocument();
+  });
+});
+
+describe('Edit Media — save behaviour', () => {
+  beforeEach(() => {
+    testQueryClient.clear();
+    vi.clearAllMocks();
+    vi.mocked(updateMedia).mockResolvedValue({ ...mockEditMedia });
+    mockMediaData({
+      data: { rows: [mockEditMedia], totalCount: 1 },
+      isFetching: false,
+      isError: false,
+      error: null,
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Click Save and check that updateMedia was called with the media id and
+  // the form values.
+  // ---------------------------------------------------------------------------
+  test('Save button calls updateMedia with the correct payload', async () => {
+    renderMediaPage();
+    await openEditModal();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(updateMedia).toHaveBeenCalledWith(
+        mockEditMedia.mediaId,
+        expect.objectContaining({ name: mockEditMedia.name }),
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Click the up arrow twice to change the duration, then save.
+  // Check that updateMedia receives the updated duration in seconds.
+  // mockEditMedia.duration = 10, two increments → 12 seconds.
+  // ---------------------------------------------------------------------------
+  test('Saving after incrementing duration sends the updated seconds in the payload', async () => {
+    renderMediaPage();
+    const dialog = await openEditModal();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Increase duration' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Increase duration' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(updateMedia).toHaveBeenCalledWith(
+        mockEditMedia.mediaId,
+        expect.objectContaining({ duration: 12 }),
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Open the modal and click Save immediately without changing anything.
+  // The save should still go through — the form must not silently skip the
+  // API call just because no fields were changed.
+  // ---------------------------------------------------------------------------
+  test('Save without making changes still calls updateMedia', async () => {
+    renderMediaPage();
+    await openEditModal();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(updateMedia).toHaveBeenCalledWith(
+        mockEditMedia.mediaId,
+        expect.objectContaining({ name: mockEditMedia.name }),
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // While the save is in progress the Save button should show "Saving…" and
+  // be disabled so the user cannot click it a second time.
+  //
+  // To hold the save in progress we make updateMedia return a promise that
+  // never resolves. The component stays in its loading state indefinitely,
+  // giving us time to check the button before anything finishes.
+  // ---------------------------------------------------------------------------
+  test('Save button is disabled while save is in progress', async () => {
+    vi.mocked(updateMedia).mockReturnValueOnce(new Promise(() => {}));
+
+    renderMediaPage();
+    await openEditModal();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    // Label changes to "Saving…" and the button becomes disabled
+    expect(await screen.findByRole('button', { name: 'Saving…' })).toBeDisabled();
+  });
+
+  // ---------------------------------------------------------------------------
+  // After a successful save the modal should close automatically.
+  // ---------------------------------------------------------------------------
+  test('Modal closes after a successful save', async () => {
+    renderMediaPage();
+    await openEditModal();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Edit Media' })).not.toBeInTheDocument();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // If the save fails, the modal should stay open so the user can fix the
+  // problem and try again.
+  // ---------------------------------------------------------------------------
+  test('API error on save — modal stays open', async () => {
+    vi.mocked(updateMedia).mockRejectedValueOnce(new Error('Server error'));
+
+    renderMediaPage();
+    await openEditModal();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Edit Media' })).toBeInTheDocument();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // The finally block in handleSave always resets isSaving, so the Save button
+  // re-enables and its label reverts from "Saving…" back to "Save" after a failure.
+  // ---------------------------------------------------------------------------
+  test('Save button re-enables after a failed save', async () => {
+    vi.mocked(updateMedia).mockRejectedValueOnce(new Error('Network error'));
+
+    renderMediaPage();
+    await openEditModal();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Save' })).not.toBeDisabled();
+    });
+  });
+});
 
 describe('Edit Media — form fields', () => {
   beforeEach(() => {
@@ -75,6 +259,62 @@ describe('Edit Media — form fields', () => {
       isError: false,
       error: null,
     });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Open the modal and check every field shows the media's current values.
+  // ---------------------------------------------------------------------------
+  test('Modal pre-populates all fields with the selected media current values', async () => {
+    renderMediaPage();
+    const dialog = await openEditModal();
+
+    expect(within(dialog).getByLabelText('Name')).toHaveValue(mockEditMedia.name);
+
+    // mockEditMedia.duration = 10 seconds, displayed as HH:MM:SS
+    expect(within(dialog).getByPlaceholderText('00:00:00')).toHaveValue('00:00:10');
+
+    // The existing tag from mockEditMedia.tags should appear as a pill
+    expect(within(dialog).getByText('nature')).toBeInTheDocument();
+
+    // mockEditMedia.retired = false, so the checkbox should be unchecked
+    expect(within(dialog).getByRole('checkbox', { name: /Retire this media/i })).not.toBeChecked();
+
+    // mockEditMedia.updateInLayouts = false, so the checkbox should be unchecked
+    expect(
+      within(dialog).getByRole('checkbox', { name: /all layouts it is assigned to/i }),
+    ).not.toBeChecked();
+  });
+
+  // ---------------------------------------------------------------------------
+  // DurationInput — up arrow increments by 1 second.
+  // mockEditMedia.duration = 10, so 10 → 11 = '00:00:11'.
+  // ---------------------------------------------------------------------------
+  test('DurationInput up arrow increments the value by 1 second', async () => {
+    renderMediaPage();
+    const dialog = await openEditModal();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Increase duration' }));
+
+    expect(within(dialog).getByPlaceholderText('00:00:00')).toHaveValue('00:00:11');
+  });
+
+  // ---------------------------------------------------------------------------
+  // DurationInput — down arrow at 0 cannot produce a negative duration.
+  // ---------------------------------------------------------------------------
+  test('DurationInput down arrow at 0 stays at 0', async () => {
+    mockMediaData({
+      data: { rows: [{ ...mockEditMedia, duration: 0 }], totalCount: 1 },
+      isFetching: false,
+      isError: false,
+      error: null,
+    });
+
+    renderMediaPage();
+    const dialog = await openEditModal();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Decrease duration' }));
+
+    expect(within(dialog).getByPlaceholderText('00:00:00')).toHaveValue('00:00:00');
   });
 
   // ---------------------------------------------------------------------------
@@ -323,7 +563,7 @@ describe('Edit Media — form fields', () => {
     await openEditModal();
 
     const retiredCheckbox = screen.getByRole('checkbox', {
-      name: /Retired media remains/i,
+      name: /Retire this media/i,
     });
     expect(retiredCheckbox).not.toBeChecked();
 
@@ -343,7 +583,7 @@ describe('Edit Media — form fields', () => {
     renderMediaPage();
     await openEditModal();
 
-    const updateCheckbox = screen.getByRole('checkbox', { name: /only be updated/i });
+    const updateCheckbox = screen.getByRole('checkbox', { name: /all layouts it is assigned to/i });
     expect(updateCheckbox).not.toBeChecked();
 
     fireEvent.click(updateCheckbox);
