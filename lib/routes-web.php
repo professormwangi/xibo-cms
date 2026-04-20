@@ -369,18 +369,6 @@ $app->get('/application/authorize', ['\Xibo\Controller\Applications','authorizeR
 $app->post('/application/authorize', ['\Xibo\Controller\Applications','authorize'])->setName('application.authorize');
 
 //
-// module
-//
-$app->group('', function (\Slim\Routing\RouteCollectorProxy $group) {
-    $group->get('/module/view', ['\Xibo\Controller\Module','displayPage'])->setName('module.view');
-    $group->get('/module/form/clear-cache/{id}', ['\Xibo\Controller\Module','clearCacheForm'])
-        ->setName('module.clear.cache.form');
-
-    $group->get('/module/form/settings/{id}', ['\Xibo\Controller\Module','settingsForm'])
-        ->setName('module.settings.form');
-})->addMiddleware(new FeatureAuth($app->getContainer(), ['module.view']));
-
-//
 // Developer
 //
 $app->group('', function (\Slim\Routing\RouteCollectorProxy $group) {

@@ -105,7 +105,7 @@
             {% endif %}
 
             {% if currentUser.featureEnabled("module.view") %}
-                <li class="sidebar-list"><a href="{{ url_for("module.view") }}">{% trans "Modules" %}</a></li>
+                <li class="sidebar-list"><a href="{{ theme.rootUri() }}prototype/administration/modules">{% trans "Modules" %}</a></li>
             {% endif %}
 
             {% if currentUser.featureEnabled("transition.view") %}

@@ -596,6 +596,7 @@ $app->delete('/application/revoke/{id}/{userId}', ['\Xibo\Controller\Application
  * Modules
  */
 $app->get('/module', ['\Xibo\Controller\Module','grid'])->setName('module.search');
+$app->get('/module/{id}', ['\Xibo\Controller\Module','searchById'])->setName('module.search.id');
 $app->get('/module/library', ['\Xibo\Controller\Module','getLibraryModules'])->setName('module.library.list');
 
 $app->get('/module/templates/{dataType}', [
@@ -785,7 +786,12 @@ $app->group('', function (RouteCollectorProxy $group) {
 })
     ->addMiddleware(new FeatureAuth($app->getContainer(), ['menuBoard.modify']));
 
+/**
+ * Fonts
+ */
 $app->get('/fonts', ['\Xibo\Controller\Font', 'grid'])->setName('font.search');
+$app->get('/fonts/{id}', ['\Xibo\Controller\Font', 'searchById'])->setName('font.search.id');
+
 $app->group('', function (RouteCollectorProxy $group) {
     $group->get('/fonts/details/{id}', ['\Xibo\Controller\Font', 'getFontLibDetails'])->setName('font.details');
     $group->get('/fonts/download/{id}', ['\Xibo\Controller\Font', 'download'])->setName('font.download');
