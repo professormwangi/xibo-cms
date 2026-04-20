@@ -50,8 +50,9 @@ class TransitionFactory extends BaseFactory
     {
         $transitions = $this->query(null, ['transitionId' => $transitionId]);
 
-        if (count($transitions) <= 0)
+        if (count($transitions) <= 0) {
             throw new NotFoundException();
+        }
 
         return $transitions[0];
     }
@@ -66,8 +67,9 @@ class TransitionFactory extends BaseFactory
     {
         $transitions = $this->query(null, ['code' => $code]);
 
-        if (count($transitions) <= 0)
+        if (count($transitions) <= 0) {
             throw new NotFoundException();
+        }
 
         return $transitions[0];
     }
