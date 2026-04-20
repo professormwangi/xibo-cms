@@ -562,11 +562,6 @@ $app->group('', function (RouteCollectorProxy $group) {
 $app->get('/fonts/fontcss', ['\Xibo\Controller\Font','fontCss'])->setName('library.font.css');
 
 $app->group('', function (RouteCollectorProxy $group) {
-    $group->get('/fonts/view', ['\Xibo\Controller\Font', 'displayPage'])->setName('font.view');
-    $group->get('/fonts/{id}/form/delete', ['\Xibo\Controller\Font', 'deleteForm'])->setName('font.form.delete');
-})->addMiddleware(new FeatureAuth($app->getContainer(), ['font.view']));
-
-$app->group('', function (RouteCollectorProxy $group) {
     $group->get('/syncgroup/view', ['\Xibo\Controller\SyncGroup', 'displayPage'])->setName('syncgroup.view');
     $group->get('/syncgroup/form/add', ['\Xibo\Controller\SyncGroup', 'addForm'])->setName('syncgroup.form.add');
     $group->get('/syncgroup/form/{id}/members', ['\Xibo\Controller\SyncGroup', 'membersForm'])->setName('syncgroup.form.members');
