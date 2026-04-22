@@ -347,8 +347,7 @@ class Controllers
                     $c->get('playlistFactory'),
                     $c->get('moduleFactory'),
                     $c->get('widgetFactory'),
-                    $c->get('mediaFactory'),
-                    $c
+                    $c->get('mediaFactory')
                 );
                 $controller->useBaseDependenciesService($c->get('ControllerBaseDependenciesService'));
                 return $controller;
@@ -531,7 +530,6 @@ class Controllers
                     $c->get('pool'),
                     $c->get('userFactory'),
                     $c->get('displayFactory'),
-                    $c->get('displayGroupFactory'),
                     $c->get('mediaFactory')
                 );
                 $controller->useBaseDependenciesService($c->get('ControllerBaseDependenciesService'));

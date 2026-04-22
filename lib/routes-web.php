@@ -31,7 +31,11 @@ $app->get('/welcome', ['\Xibo\Controller\User', 'welcome'])->setName('welcome.vi
 //
 // Dashboards
 //
-$app->group('', function(RouteCollectorProxy $group) {
+$app->get('/icondashboard', ['\Xibo\Controller\IconDashboard', 'displayPage'])
+    ->setName('icondashboard.view');
+$app->group('', function (RouteCollectorProxy $group) {
+    $group->get('/statusdashboard', ['\Xibo\Controller\StatusDashboard', 'displayPage'])
+        ->setName('statusdashboard.view');
     $group->get('/statusdashboard/displays', ['\Xibo\Controller\StatusDashboard', 'displays'])
         ->setName('statusdashboard.displays');
     $group->get('/statusdashboard/displayGroups', ['\Xibo\Controller\StatusDashboard', 'displayGroups'])
@@ -39,11 +43,13 @@ $app->group('', function(RouteCollectorProxy $group) {
 })->add(new FeatureAuth($app->getContainer(), ['dashboard.status']));
 
 $app->group('', function (RouteCollectorProxy $group) {
-    $group->get('/mediamanager/data', ['\Xibo\Controller\MediaManager', 'grid'])
+    $group->get('/mediamanager/data', ['\Xibo\Controller\MediaManager', 'getLibraryUsage'])
         ->setName('mediamanager.search');
 })->add(new FeatureAuth($app->getContainer(), ['dashboard.media.manager']));
 
 $app->group('', function (RouteCollectorProxy $group) {
+    $group->get('/playlistdashboard', ['\Xibo\Controller\PlaylistDashboard', 'displayPage'])
+        ->setName('playlistdashboard.view');
     $group->get('/playlistdashboard/data', ['\Xibo\Controller\PlaylistDashboard', 'grid'])
         ->setName('playlistdashboard.search');
     $group->get('/playlistdashboard/{id}', ['\Xibo\Controller\PlaylistDashboard', 'show'])

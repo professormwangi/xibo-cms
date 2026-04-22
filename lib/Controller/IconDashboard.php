@@ -1,8 +1,8 @@
 <?php
-/**
- * Copyright (C) 2021 Xibo Signage Ltd
+/*
+ * Copyright (C) 2026 Xibo Signage Ltd
  *
- * Xibo - Digital Signage - http://www.xibo.org.uk
+ * Xibo - Digital Signage - https://xibosignage.com
  *
  * This file is part of Xibo.
  *
@@ -23,12 +23,9 @@
 
 namespace Xibo\Controller;
 
+use Psr\Http\Message\ResponseInterface;
 use Slim\Http\Response as Response;
 use Slim\Http\ServerRequest as Request;
-use Slim\Views\Twig;
-use Xibo\Helper\SanitizerService;
-use Xibo\Service\ConfigServiceInterface;
-use Xibo\Service\LogServiceInterface;
 
 /**
  * Class IconDashboard
@@ -39,12 +36,13 @@ class IconDashboard extends Base
     /**
      * @param Request $request
      * @param Response $response
-     * @return \Psr\Http\Message\ResponseInterface|Response
+     * @return ResponseInterface|Response
      * @throws \Xibo\Support\Exception\ControllerNotImplemented
      * @throws \Xibo\Support\Exception\GeneralException
      */
-    public function displayPage(Request $request, Response $response)
+    public function displayPage(Request $request, Response $response): Response|ResponseInterface
     {
+        // TODO remove once converted
         $this->getState()->template = 'dashboard-icon-page';
 
         return $this->render($request, $response);
