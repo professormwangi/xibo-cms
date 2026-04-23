@@ -42,6 +42,7 @@ export interface DatePickerProps {
   isJalali?: boolean;
   disablePastDates?: boolean;
   disableFutureDates?: boolean;
+  showTimePicker?: boolean;
   onApply: (
     value: { type: 'single'; date: Date } | { type: 'range'; from: Date; to: Date },
   ) => void;
@@ -69,6 +70,7 @@ export default function DatePicker({
   isJalali = false,
   disablePastDates = false,
   disableFutureDates = false,
+  showTimePicker = true,
 }: DatePickerProps) {
   const defaultClassNames = getDefaultClassNames();
   const [single, setSingle] = useState<Date | undefined>(value?.date);
@@ -121,7 +123,7 @@ export default function DatePicker({
     if (mode === 'single' && single) {
       onApply({
         type: 'single',
-        date: applyTime(single),
+        date: showTimePicker ? applyTime(single) : single,
       });
     }
 
@@ -183,7 +185,7 @@ export default function DatePicker({
       </div>
 
       {/* Time picker */}
-      {mode === 'single' && (
+      {mode === 'single' && showTimePicker && (
         <div className="px-3 pb-3 flex justify-center">
           <div className="flex items-center gap-x-2">
             <select value={hour} onChange={(e) => setHour(e.target.value)} className={timeClass}>

@@ -19,8 +19,11 @@
  * along with Xibo.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { isAxiosError } from 'axios';
+
 import http from '@/lib/api';
 import type { Event } from '@/types/event';
+import { formatDateTime } from '@/utils/date';
 
 export interface FetchEventRequest {
   start: number;
@@ -92,4 +95,130 @@ export async function cloneEvent({ eventId, name }: CloneEventRequest): Promise<
   });
 
   return response.data;
+}
+
+export interface CreateEventRequest {
+  eventTypeId: number;
+  displayGroupIds: number[];
+  dayPartId: number;
+
+  campaignId?: number;
+  commandId?: number;
+  mediaId?: number;
+  playlistId?: number;
+
+  fromDt?: string;
+  toDt?: string;
+  recurrenceType?: string;
+  recurrenceDetail?: number;
+  recurrenceRepeatsOn?: number[];
+  recurrenceMonthlyRepeatsOn?: number;
+  recurrenceRange?: string;
+  syncTimezone?: number;
+
+  name?: string;
+  resolutionId?: number;
+  displayOrder?: number;
+  isPriority?: number;
+  maxPlaysPerHour?: number;
+
+  shareOfVoice?: number;
+
+  isGeoAware?: number;
+  geoLocation?: string;
+
+  backgroundColor?: string;
+  layoutDuration?: number;
+
+  criteria?: {
+    type: string;
+    metric: string;
+    condition: string;
+    value: string;
+  }[];
+
+  scheduleReminders?: {
+    reminder_value: number;
+    reminder_type: number;
+    reminder_option: number;
+    reminder_isEmailHidden: number;
+  }[];
+}
+
+export async function createEvent(data: CreateEventRequest): Promise<Event> {
+  const params = new URLSearchParams();
+
+  params.append('eventTypeId', String(data.eventTypeId));
+  params.append('dayPartId', String(data.dayPartId));
+
+  data.displayGroupIds.forEach((id) => params.append('displayGroupIds[]', String(id)));
+
+  if (data.campaignId) params.append('campaignId', String(data.campaignId));
+  if (data.commandId) params.append('commandId', String(data.commandId));
+  if (data.mediaId) params.append('mediaId', String(data.mediaId));
+  if (data.playlistId) params.append('playlistId', String(data.playlistId));
+
+  if (data.fromDt) params.append('fromDt', formatDateTime(new Date(data.fromDt)));
+  if (data.toDt) params.append('toDt', formatDateTime(new Date(data.toDt)));
+  if (data.recurrenceType) params.append('recurrenceType', data.recurrenceType);
+  if (data.recurrenceDetail) params.append('recurrenceDetail', String(data.recurrenceDetail));
+  if (data.recurrenceRepeatsOn) {
+    data.recurrenceRepeatsOn.forEach((day) => params.append('recurrenceRepeatsOn[]', String(day)));
+  }
+  if (data.recurrenceMonthlyRepeatsOn != null) {
+    params.append('recurrenceMonthlyRepeatsOn', String(data.recurrenceMonthlyRepeatsOn));
+  }
+  if (data.recurrenceRange) {
+    params.append('recurrenceRange', formatDateTime(new Date(data.recurrenceRange)));
+  }
+  if (data.syncTimezone != null) params.append('syncTimezone', String(data.syncTimezone));
+
+  if (data.name) params.append('name', data.name);
+  if (data.resolutionId) params.append('resolutionId', String(data.resolutionId));
+  if (data.displayOrder != null) params.append('displayOrder', String(data.displayOrder));
+  if (data.isPriority != null) params.append('isPriority', String(data.isPriority));
+  if (data.maxPlaysPerHour != null) {
+    params.append('maxPlaysPerHour', String(data.maxPlaysPerHour));
+  }
+  if (data.shareOfVoice != null) params.append('shareOfVoice', String(data.shareOfVoice));
+
+  if (data.isGeoAware != null) params.append('isGeoAware', String(data.isGeoAware));
+  if (data.geoLocation) params.append('geoLocation', data.geoLocation);
+
+  if (data.backgroundColor) params.append('backgroundColor', data.backgroundColor);
+  if (data.layoutDuration != null) params.append('layoutDuration', String(data.layoutDuration));
+
+  if (data.criteria && data.criteria.length > 0) {
+    data.criteria.forEach((c, i) => {
+      params.append(`criteria[${i}][metric]`, c.metric);
+      params.append(`criteria[${i}][type]`, c.type);
+      params.append(`criteria[${i}][condition]`, c.condition);
+      params.append(`criteria[${i}][value]`, c.value);
+    });
+  }
+
+  if (data.scheduleReminders && data.scheduleReminders.length > 0) {
+    data.scheduleReminders.forEach((r, i) => {
+      params.append(`reminder_value[${i}]`, String(r.reminder_value));
+      params.append(`reminder_type[${i}]`, String(r.reminder_type));
+      params.append(`reminder_option[${i}]`, String(r.reminder_option));
+      params.append(`reminder_isEmailHidden[${i}]`, String(r.reminder_isEmailHidden));
+    });
+  }
+
+  try {
+    const response = await http.post('/schedule', params.toString(), {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+
+    return response.data;
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.data?.message) {
+      throw new Error(error.response.data.message);
+    }
+    throw error;
+  }
 }

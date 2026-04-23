@@ -35,6 +35,8 @@ import FolderActionModals from '@/components/ui/FolderActionModals';
 import SelectFolder from '@/components/ui/forms/SelectFolder';
 import Modal from '@/components/ui/modals/Modal';
 import MoveModal from '@/components/ui/modals/MoveModal';
+import ScheduleEventModal from '@/components/ui/modals/ScheduleEventModal';
+import { EventTypeId } from '@/types/event';
 import ShareModal from '@/components/ui/modals/ShareModal';
 import type { useFolderActions } from '@/hooks/useFolderActions';
 import type { UploadItem } from '@/hooks/useUploadQueue';
@@ -188,6 +190,17 @@ export function MediaModals({
             />
           )}
         </>
+      )}
+
+      {isModalOpen('schedule') && (
+        <ScheduleEventModal
+          isOpen
+          onClose={actions.closeModal}
+          mode="schedule"
+          eventTypeId={EventTypeId.Media}
+          contentId={selection.selectedMedia?.mediaId}
+          contentName={selection.selectedMedia?.name}
+        />
       )}
 
       {upload.isOpen && (

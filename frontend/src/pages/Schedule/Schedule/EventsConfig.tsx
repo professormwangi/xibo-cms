@@ -63,7 +63,7 @@ export interface EventFilterInput {
   toDt?: string | null;
 }
 
-export type ModalType = BaseModalType | null;
+export type ModalType = BaseModalType | 'schedule' | null;
 
 export const INITIAL_FILTER_STATE: EventFilterInput = {};
 

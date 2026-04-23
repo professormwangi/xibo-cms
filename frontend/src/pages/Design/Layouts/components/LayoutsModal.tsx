@@ -33,6 +33,8 @@ import { RetireLayoutModal } from './RetireLayoutModal';
 import SaveAsTemplateModal from './SaveAsTemplateModal';
 
 import FolderActionModals from '@/components/ui/FolderActionModals';
+import ScheduleEventModal from '@/components/ui/modals/ScheduleEventModal';
+import { EventTypeId } from '@/types/event';
 import type { PublishValue } from '@/components/ui/forms/PublishDateSelect';
 import MoveModal from '@/components/ui/modals/MoveModal';
 import PublishModal from '@/components/ui/modals/PublishModal';
@@ -211,6 +213,20 @@ export function LayoutModals({
 
       {isModalOpen('enableStats') && selection.selectedLayout && (
         <EnableStatsLayoutModal layout={selection.selectedLayout} onClose={actions.closeModal} />
+      )}
+
+      {isModalOpen('schedule') && selection.selectedLayout && (
+        <ScheduleEventModal
+          isOpen
+          onClose={() => {
+            actions.closeModal();
+            actions.handleRefresh();
+          }}
+          mode="schedule"
+          eventTypeId={EventTypeId.Layout}
+          contentId={selection.selectedLayout.campaignId}
+          contentName={selection.selectedLayout.layout}
+        />
       )}
 
       {infoPanel.isOpen && (

@@ -24,6 +24,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import CopyEventModal from './CopyEventModal';
 import DeleteEventModal from './DeleteEventModal';
 
+import ScheduleEventModal from '@/components/ui/modals/ScheduleEventModal';
 import type { Event } from '@/types/event';
 
 interface EventModalsProps {
@@ -76,6 +77,16 @@ export function EventModals({ actions, selection, handlers }: EventModalsProps) 
           event={selection.selectedEvent}
           isLoading={actions.isCloning}
           existingNames={selection.existingNames}
+        />
+      )}
+
+      {isModalOpen('schedule') && (
+        <ScheduleEventModal
+          isOpen
+          onClose={() => {
+            actions.closeModal();
+            actions.handleRefresh();
+          }}
         />
       )}
     </>

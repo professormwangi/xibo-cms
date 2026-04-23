@@ -44,6 +44,7 @@ interface DatePickerInputProps {
   helpText?: string;
   disablePastDates?: boolean;
   disableFutureDates?: boolean;
+  showTimePicker?: boolean;
 }
 
 export default function DatePickerInput({
@@ -53,6 +54,7 @@ export default function DatePickerInput({
   helpText,
   disablePastDates = false,
   disableFutureDates = false,
+  showTimePicker = true,
 }: DatePickerInputProps) {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
@@ -69,7 +71,11 @@ export default function DatePickerInput({
   const dismiss = useDismiss(context);
   const { getReferenceProps, getFloatingProps } = useInteractions([click, dismiss]);
 
-  const displayValue = value ? new Date(value).toLocaleString() : '';
+  const displayValue = value
+    ? showTimePicker
+      ? new Date(value).toLocaleString()
+      : new Date(value).toLocaleDateString()
+    : '';
 
   return (
     <div className="flex flex-col gap-1.5 relative">
@@ -127,6 +133,7 @@ export default function DatePickerInput({
               value={value ? { date: new Date(value) } : undefined}
               disablePastDates={disablePastDates}
               disableFutureDates={disableFutureDates}
+              showTimePicker={showTimePicker}
               onApply={(selection) => {
                 if (selection && selection.type === 'single' && selection.date) {
                   onChange(selection.date.toISOString());

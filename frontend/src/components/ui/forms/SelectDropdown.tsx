@@ -226,8 +226,11 @@ export default function SelectDropdown({
                   {t(placeholder)}
                 </button>
               )}
-              {visibleOptions.length === 0 && !isLoadingMore && (
+              {visibleOptions.length === 0 && !isLoadingMore && !isLoading && (
                 <p className="text-sm text-gray-400 text-center py-2">{t('No results')}</p>
+              )}
+              {isLoading && visibleOptions.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-2">{t('Loading...')}</p>
               )}
               {visibleOptions.map((option) => (
                 <button

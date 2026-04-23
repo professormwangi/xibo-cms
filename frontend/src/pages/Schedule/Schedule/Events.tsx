@@ -235,9 +235,7 @@ export default function Events() {
               variant="primary"
               className="font-semibold"
               disabled={!isHydrated}
-              onClick={() => {
-                console.log('Add Event - not implemented!');
-              }}
+              onClick={() => openModal('schedule')}
               leftIcon={Plus}
             >
               {t('Add Event')}
