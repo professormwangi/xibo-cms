@@ -108,7 +108,7 @@ export const getScheduleEventSchema = (t: TFunction) =>
         });
       }
 
-      if (data.eventTypeId === EventTypeId.Media && !data.mediaId) {
+      if (data.eventTypeId === EventTypeId.Media && !data.mediaId && !data.campaignId) {
         ctx.addIssue({
           path: ['mediaId'],
           code: z.ZodIssueCode.custom,
@@ -116,7 +116,7 @@ export const getScheduleEventSchema = (t: TFunction) =>
         });
       }
 
-      if (data.eventTypeId === EventTypeId.Playlist && !data.playlistId) {
+      if (data.eventTypeId === EventTypeId.Playlist && !data.playlistId && !data.campaignId) {
         ctx.addIssue({
           path: ['playlistId'],
           code: z.ZodIssueCode.custom,

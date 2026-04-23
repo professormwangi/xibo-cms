@@ -89,6 +89,18 @@ export function EventModals({ actions, selection, handlers }: EventModalsProps) 
           }}
         />
       )}
+
+      {isModalOpen('edit') && selection.selectedEvent && (
+        <ScheduleEventModal
+          isOpen
+          onClose={() => {
+            actions.closeModal();
+            actions.handleRefresh();
+          }}
+          mode="edit"
+          event={selection.selectedEvent}
+        />
+      )}
     </>
   );
 }

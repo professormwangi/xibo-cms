@@ -25,7 +25,7 @@ import { useTranslation } from 'react-i18next';
 
 import InfoBanner from '../InfoBanner';
 import { notify } from '../Notification';
-import Stepper, { type StepDefinition } from '../Stepper';
+import Stepper from '../Stepper';
 import Checkbox from '../forms/Checkbox';
 import DatePickerInput from '../forms/DatePickerInput';
 import MultiSelectDropdown from '../forms/MultiSelectDropdown';
@@ -35,19 +35,44 @@ import TextInput from '../forms/TextInput';
 
 import Modal, { type ModalAction } from './Modal';
 
+import {
+  type DraftCriterion,
+  type DraftReminder,
+  type ScheduleEventDraft,
+  type OptionalTab,
+  type ScheduleFormErrors,
+  type SelectOption,
+  STEP_LABELS,
+  EVENT_TYPE_OPTIONS,
+  CONDITION_OPTIONS,
+  CRITERIA_TYPE_OPTIONS,
+  RECURRENCE_TYPE_OPTIONS,
+  REMINDER_TYPE_OPTIONS,
+  REMINDER_OPTION_OPTIONS,
+  WEEKDAYS,
+  EMPTY_CRITERION,
+  EMPTY_REMINDER,
+  createInitialDraft,
+  createDraftFromEvent,
+  getContentFieldConfig,
+  getContentHelpText,
+  getContentValue,
+  getPrefilledOption,
+  buildSteps,
+} from '@/pages/Schedule/utils/scheduleEventDraft';
 import { getScheduleEventSchema } from '@/schema/scheduleEvent';
 import { fetchCampaigns } from '@/services/campaignApi';
 import { fetchCommands } from '@/services/commandApi';
 import { fetchDaypart } from '@/services/daypartApi';
 import { fetchDisplayGroups } from '@/services/displayGroupApi';
-import { createEvent } from '@/services/eventApi';
+import { createEvent, updateEvent } from '@/services/eventApi';
 import { fetchLayouts } from '@/services/layoutsApi';
 import { fetchMedia } from '@/services/mediaApi';
 import { fetchPlaylist } from '@/services/playlistApi';
 import { fetchResolution } from '@/services/resolutionApi';
-import { EventTypeId, ReminderType, ReminderOption, type CriteriaCondition } from '@/types/event';
+import { EventTypeId, type Event } from '@/types/event';
 
-type ScheduleModalMode = 'add' | 'schedule';
+type ScheduleModalMode = 'add' | 'schedule' | 'edit';
 
 interface ScheduleEventModalProps {
   isOpen: boolean;
@@ -56,257 +81,7 @@ interface ScheduleEventModalProps {
   eventTypeId?: EventTypeId;
   contentId?: number;
   contentName?: string;
-}
-
-interface DraftCriterion {
-  type: string;
-  metric: string;
-  condition: CriteriaCondition | string;
-  value: string;
-}
-
-interface DraftReminder {
-  value: number;
-  type: ReminderType;
-  option: ReminderOption;
-  isEmail: boolean;
-}
-
-interface ScheduleEventDraft {
-  eventTypeId: EventTypeId | null;
-  mediaId: number | null;
-  campaignId: number | null;
-  commandId: number | null;
-  playlistId: number | null;
-  displayGroupIds: string[];
-  dayPartId: string;
-  fromDt: string;
-  toDt: string;
-  useRelativeTime: boolean;
-  relativeHours: number;
-  relativeMinutes: number;
-  relativeSeconds: number;
-  name: string;
-  layoutDuration: number;
-  resolutionId: string;
-  backgroundColor: string;
-  displayOrder: number;
-  isPriority: number;
-  maxPlaysPerHour: number;
-  syncTimezone: boolean;
-  recurrenceType: string;
-  recurrenceDetail: number;
-  recurrenceRepeatsOn: string[];
-  recurrenceMonthlyRepeatsOn: number;
-  recurrenceRange: string;
-  reminders: DraftReminder[];
-  isGeoAware: boolean;
-  criteria: DraftCriterion[];
-}
-
-type OptionalTab = 'general' | 'repeats' | 'reminder' | 'geoLocation' | 'criteria';
-
-type ScheduleFormErrors = Partial<Record<keyof ScheduleEventDraft, string>>;
-
-interface SelectOption {
-  label: string;
-  value: string;
-}
-
-// Constants
-const STEP_LABELS = ['Content', 'Displays', 'Time', 'Optional'] as const;
-
-const EVENT_TYPE_OPTIONS: SelectOption[] = [
-  { value: String(EventTypeId.Layout), label: 'Layout' },
-  { value: String(EventTypeId.Command), label: 'Command' },
-  { value: String(EventTypeId.Overlay), label: 'Overlay Layout' },
-  { value: String(EventTypeId.Interrupt), label: 'Interrupt Layout' },
-  { value: String(EventTypeId.Campaign), label: 'Campaign' },
-  { value: String(EventTypeId.Action), label: 'Action' },
-  { value: String(EventTypeId.Media), label: 'Media' },
-  { value: String(EventTypeId.Playlist), label: 'Playlist' },
-];
-
-const CONDITION_OPTIONS: SelectOption[] = [
-  { value: 'set', label: 'Is set' },
-  { value: 'not_set', label: 'Is not set' },
-  { value: 'equals', label: 'Equals' },
-  { value: 'not_equals', label: 'Not equals' },
-  { value: 'gt', label: 'Greater than' },
-  { value: 'lt', label: 'Less than' },
-];
-
-const CRITERIA_TYPE_OPTIONS: SelectOption[] = [
-  { value: 'display', label: 'Display' },
-  { value: 'geoLocation', label: 'Geo Location' },
-  { value: 'time', label: 'Time' },
-];
-
-const RECURRENCE_TYPE_OPTIONS: SelectOption[] = [
-  { value: '', label: 'None' },
-  { value: 'Minute', label: 'Minute' },
-  { value: 'Hour', label: 'Hour' },
-  { value: 'Day', label: 'Day' },
-  { value: 'Week', label: 'Week' },
-  { value: 'Month', label: 'Month' },
-  { value: 'Year', label: 'Year' },
-];
-
-const REMINDER_TYPE_OPTIONS: SelectOption[] = [
-  { value: String(ReminderType.Minute), label: 'Minute' },
-  { value: String(ReminderType.Hour), label: 'Hour' },
-  { value: String(ReminderType.Day), label: 'Day' },
-  { value: String(ReminderType.Week), label: 'Week' },
-  { value: String(ReminderType.Month), label: 'Month' },
-];
-
-const REMINDER_OPTION_OPTIONS: SelectOption[] = [
-  { value: String(ReminderOption.BeforeStart), label: 'Before schedule starts' },
-  { value: String(ReminderOption.AfterStart), label: 'After schedule starts' },
-  { value: String(ReminderOption.BeforeEnd), label: 'Before schedule ends' },
-  { value: String(ReminderOption.AfterEnd), label: 'After schedule ends' },
-];
-
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
-
-const EMPTY_CRITERION: DraftCriterion = {
-  type: '',
-  metric: '',
-  condition: 'set',
-  value: '',
-};
-
-const EMPTY_REMINDER: DraftReminder = {
-  value: 0,
-  type: ReminderType.Minute,
-  option: ReminderOption.BeforeStart,
-  isEmail: false,
-};
-
-function createInitialDraft(eventTypeId?: EventTypeId, contentId?: number): ScheduleEventDraft {
-  return {
-    eventTypeId: eventTypeId ?? EventTypeId.Layout,
-    mediaId: eventTypeId === EventTypeId.Media ? (contentId ?? null) : null,
-    campaignId:
-      eventTypeId &&
-      [
-        EventTypeId.Layout,
-        EventTypeId.Overlay,
-        EventTypeId.Interrupt,
-        EventTypeId.Campaign,
-      ].includes(eventTypeId)
-        ? (contentId ?? null)
-        : null,
-    commandId: eventTypeId === EventTypeId.Command ? (contentId ?? null) : null,
-    playlistId: eventTypeId === EventTypeId.Playlist ? (contentId ?? null) : null,
-    displayGroupIds: [],
-    dayPartId: '',
-    fromDt: '',
-    toDt: '',
-    useRelativeTime: true,
-    relativeHours: 0,
-    relativeMinutes: 0,
-    relativeSeconds: 0,
-    name: '',
-    layoutDuration: 0,
-    resolutionId: '',
-    backgroundColor: '#000000',
-    displayOrder: 0,
-    isPriority: 0,
-    maxPlaysPerHour: 0,
-    syncTimezone: false,
-    recurrenceType: '',
-    recurrenceDetail: 1,
-    recurrenceRepeatsOn: [],
-    recurrenceMonthlyRepeatsOn: 0,
-    recurrenceRange: '',
-    reminders: [{ ...EMPTY_REMINDER }],
-    isGeoAware: false,
-    criteria: [{ ...EMPTY_CRITERION }],
-  };
-}
-
-function buildSteps(currentStep: number, t: (key: string) => string): StepDefinition[] {
-  const isLastStep = currentStep === STEP_LABELS.length - 1;
-
-  return STEP_LABELS.map((label, index) => ({
-    label: t(label),
-    status:
-      isLastStep || index < currentStep
-        ? 'completed'
-        : index === currentStep
-          ? 'active'
-          : 'inactive',
-  }));
-}
-
-function getContentFieldConfig(eventTypeId: EventTypeId | null, t: (key: string) => string) {
-  switch (eventTypeId) {
-    case EventTypeId.Layout:
-    case EventTypeId.Overlay:
-    case EventTypeId.Interrupt:
-      return { label: t('Layout'), placeholder: t('Select Layout') };
-    case EventTypeId.Command:
-      return { label: t('Command'), placeholder: t('Select Command') };
-    case EventTypeId.Campaign:
-      return { label: t('Campaign'), placeholder: t('Select Campaign') };
-    case EventTypeId.Media:
-      return { label: t('Media'), placeholder: t('Select Media') };
-    case EventTypeId.Playlist:
-      return { label: t('Playlist'), placeholder: t('Select Playlist') };
-    default:
-      return null;
-  }
-}
-
-function getContentHelpText(eventTypeId: EventTypeId | null, t: (key: string) => string): string {
-  switch (eventTypeId) {
-    case EventTypeId.Layout:
-      return t('Select a Layout to schedule.');
-    case EventTypeId.Overlay:
-      return t('Select an Overlay Layout to schedule.');
-    case EventTypeId.Interrupt:
-      return t('Select an Interrupt Layout to schedule.');
-    case EventTypeId.Command:
-      return t('Select a Command to execute on the selected Displays.');
-    case EventTypeId.Campaign:
-      return t('Select a Campaign to schedule.');
-    case EventTypeId.Media:
-      return t(
-        'Select a Media item to use. The selected media will be shown full screen for this event.',
-      );
-    case EventTypeId.Playlist:
-      return t(
-        'Select a Playlist to use. The selected playlist will be shown full screen for this event.',
-      );
-    default:
-      return '';
-  }
-}
-
-function getContentValue(draft: ScheduleEventDraft): string {
-  switch (draft.eventTypeId) {
-    case EventTypeId.Media:
-      return draft.mediaId ? String(draft.mediaId) : '';
-    case EventTypeId.Playlist:
-      return draft.playlistId ? String(draft.playlistId) : '';
-    case EventTypeId.Command:
-      return draft.commandId ? String(draft.commandId) : '';
-    case EventTypeId.Layout:
-    case EventTypeId.Overlay:
-    case EventTypeId.Interrupt:
-    case EventTypeId.Campaign:
-      return draft.campaignId ? String(draft.campaignId) : '';
-    default:
-      return '';
-  }
-}
-
-function getPrefilledOption(contentId?: number, contentName?: string): SelectOption | null {
-  if (contentId) {
-    return { value: String(contentId), label: contentName || `#${contentId}` };
-  }
-  return null;
+  event?: Event;
 }
 
 export default function ScheduleEventModal({
@@ -316,13 +91,15 @@ export default function ScheduleEventModal({
   eventTypeId: prefilledEventTypeId,
   contentId,
   contentName,
+  event,
 }: ScheduleEventModalProps) {
   const { t } = useTranslation();
 
-  const initialStep = contentId ? 1 : 0;
+  const isEditMode = mode === 'edit' && !!event;
+  const initialStep = isEditMode ? 0 : contentId ? 1 : 0;
   const [currentStep, setCurrentStep] = useState(initialStep);
   const [draft, setDraft] = useState<ScheduleEventDraft>(() =>
-    createInitialDraft(prefilledEventTypeId, contentId),
+    isEditMode ? createDraftFromEvent(event) : createInitialDraft(prefilledEventTypeId, contentId),
   );
   const [optionalTab, setOptionalTab] = useState<OptionalTab>('general');
 
@@ -356,8 +133,8 @@ export default function ScheduleEventModal({
     )
       return !!draft.campaignId;
     if (draft.eventTypeId === EventTypeId.Command) return !!draft.commandId;
-    if (draft.eventTypeId === EventTypeId.Media) return !!draft.mediaId;
-    if (draft.eventTypeId === EventTypeId.Playlist) return !!draft.playlistId;
+    if (draft.eventTypeId === EventTypeId.Media) return !!(draft.mediaId || draft.campaignId);
+    if (draft.eventTypeId === EventTypeId.Playlist) return !!(draft.playlistId || draft.campaignId);
     return true;
   })();
   const canFinish = currentStep >= 1 && hasDisplays;
@@ -583,14 +360,24 @@ export default function ScheduleEventModal({
         const filteredCriteria = draft.criteria.filter((c) => c.type && c.metric);
         const filteredReminders = draft.reminders.filter((r) => r.value > 0);
 
-        await createEvent({
+        const payload = {
           eventTypeId,
           displayGroupIds,
           dayPartId: Number(draft.dayPartId),
 
-          ...(eventTypeId === EventTypeId.Media && draft.mediaId ? { mediaId: draft.mediaId } : {}),
-          ...(eventTypeId === EventTypeId.Playlist && draft.playlistId
-            ? { playlistId: draft.playlistId }
+          ...(eventTypeId === EventTypeId.Media
+            ? draft.mediaId
+              ? { mediaId: draft.mediaId }
+              : draft.campaignId
+                ? { fullScreenCampaignId: draft.campaignId }
+                : {}
+            : {}),
+          ...(eventTypeId === EventTypeId.Playlist
+            ? draft.playlistId
+              ? { playlistId: draft.playlistId }
+              : draft.campaignId
+                ? { fullScreenCampaignId: draft.campaignId }
+                : {}
             : {}),
           ...([
             EventTypeId.Layout,
@@ -655,9 +442,15 @@ export default function ScheduleEventModal({
           isGeoAware: draft.isGeoAware ? 1 : 0,
 
           ...(filteredCriteria.length > 0 ? { criteria: filteredCriteria } : {}),
-        });
+        };
 
-        notify.success(t('Added Event'));
+        if (isEditMode) {
+          await updateEvent(event.eventId, payload);
+          notify.success(t('Updated Event'));
+        } else {
+          await createEvent(payload);
+          notify.success(t('Added Event'));
+        }
         onClose();
       } catch (error) {
         setApiError(
@@ -669,10 +462,15 @@ export default function ScheduleEventModal({
 
   const handleClose = () => {
     setCurrentStep(initialStep);
-    setDraft(createInitialDraft(prefilledEventTypeId, contentId));
+    setDraft(
+      isEditMode
+        ? createDraftFromEvent(event)
+        : createInitialDraft(prefilledEventTypeId, contentId),
+    );
     setOptionalTab('general');
     setShowDisplayBanner(false);
     setFormErrors({});
+    setApiError(undefined);
     onClose();
   };
 
@@ -727,7 +525,12 @@ export default function ScheduleEventModal({
   const contentField = getContentFieldConfig(draft.eventTypeId, t);
   const contentHelpText = getContentHelpText(draft.eventTypeId, t);
 
-  const prefilledOption = getPrefilledOption(contentId, contentName);
+  const prefilledOption = isEditMode
+    ? getPrefilledOption(
+        Number(getContentValue(draft)) || undefined,
+        event.campaign || event.command || undefined,
+      )
+    : getPrefilledOption(contentId, contentName);
   const mergedContentOptions =
     prefilledOption && !contentOptions.some((o) => o.value === prefilledOption.value)
       ? [prefilledOption, ...contentOptions]
@@ -737,7 +540,7 @@ export default function ScheduleEventModal({
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title={t('Schedule Event')}
+      title={isEditMode ? t('Edit Event') : t('Schedule Event')}
       size="lg"
       scrollable={false}
       actions={actions}

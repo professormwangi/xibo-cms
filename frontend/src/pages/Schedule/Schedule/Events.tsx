@@ -177,10 +177,9 @@ export default function Events() {
     if (event) {
       setSelectedEventId(event.eventId);
       openModal('edit');
-      console.log('Edit Event - not implemented!');
     } else {
       setSelectedEventId(null);
-      openModal('edit');
+      openModal('schedule');
     }
   };
 
