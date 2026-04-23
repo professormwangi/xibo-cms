@@ -188,6 +188,41 @@ class Font extends Base
     }
 
     #[OA\Get(
+        path: '/fonts/{fontId}',
+        operationId: 'fontSearchById',
+        description: 'Get the Font object specified by the provided fontId',
+        summary: 'Font Search by ID',
+        tags: ['font']
+    )]
+    #[OA\Parameter(
+        name: 'fontId',
+        description: 'Numeric ID of the Font to get',
+        in: 'path',
+        required: true,
+        schema: new OA\Schema(type: 'integer')
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'successful operation',
+        content: new OA\JsonContent(ref: '#/components/schemas/Font')
+    )]
+    /**
+     * @param Request $request
+     * @param Response $response
+     * @param int $id
+     * @return Response|ResponseInterface
+     * @throws NotFoundException
+     */
+    public function searchById(Request $request, Response $response, int $id): Response|ResponseInterface
+    {
+        $font = $this->fontFactory->getById($id);
+
+        return $response
+            ->withStatus(200)
+            ->withJson($font);
+    }
+
+    #[OA\Get(
         path: '/fonts/details/{id}',
         operationId: 'fontDetails',
         description: 'Get the Font details',
