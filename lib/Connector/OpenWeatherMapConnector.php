@@ -255,12 +255,13 @@ class OpenWeatherMapConnector implements ConnectorInterface
         $this->currentDay->location = $data['name'] ?? '';
         $this->processItemIntoDay($this->currentDay, $data['current'], $units, true);
 
-        $currentDayDate = date('Y-m-d', $this->currentDay->time);
+        $locationTz = new \DateTimeZone($this->timezone);
+        $currentDayDate = Carbon::createFromTimestamp($this->currentDay->time)->setTimezone($locationTz)->format('Y-m-d');
         $this->getLogger()->debug('getWeatherData: currentDay date=' . $currentDayDate);
         // Process each day into a forecast
         foreach ($data['daily'] as $dayItem) {
             // Skip any item that falls on the same date as currentDay
-            if (date('Y-m-d', $dayItem['dt']) === $currentDayDate) {
+            if (Carbon::createFromTimestamp($dayItem['dt'])->setTimezone($locationTz)->format('Y-m-d') === $currentDayDate) {
                 continue;
             }
 
