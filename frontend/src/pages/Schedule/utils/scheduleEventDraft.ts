@@ -49,7 +49,8 @@ export interface ScheduleEventDraft {
   campaignId: number | null;
   commandId: number | null;
   playlistId: number | null;
-  displayGroupIds: string[];
+  displaySpecificGroupIds: number[];
+  displayGroupIds: number[];
   dayPartId: string;
   fromDt: string;
   toDt: string;
@@ -77,7 +78,14 @@ export interface ScheduleEventDraft {
 
 export type OptionalTab = 'general' | 'repeats' | 'reminder' | 'geoLocation' | 'criteria';
 
-export type ScheduleFormErrors = Partial<Record<keyof ScheduleEventDraft, string>>;
+export type ScheduleFormErrors = Partial<
+  Record<
+    Exclude<keyof ScheduleEventDraft, 'displaySpecificGroupIds' | 'displayGroupIds'>,
+    string
+  > & {
+    displayGroupIds: string;
+  }
+>;
 
 export interface SelectOption {
   label: string;
@@ -172,6 +180,7 @@ export function createInitialDraft(
         : null,
     commandId: eventTypeId === EventTypeId.Command ? (contentId ?? null) : null,
     playlistId: eventTypeId === EventTypeId.Playlist ? (contentId ?? null) : null,
+    displaySpecificGroupIds: [],
     displayGroupIds: [],
     dayPartId: '',
     fromDt: '',
@@ -199,49 +208,56 @@ export function createInitialDraft(
   };
 }
 
-export function createDraftFromEvent(event: Event): ScheduleEventDraft {
+export function createDraftFromEvent(scheduleEvent: Event): ScheduleEventDraft {
   return {
-    eventTypeId: event.eventTypeId,
-    mediaId: null,
-    campaignId: event.campaignId ?? null,
-    commandId: event.commandId ?? null,
-    playlistId: null,
-    displayGroupIds: event.displayGroups.map((dg) => String(dg.displayGroupId)),
-    dayPartId: String(event.dayPartId),
-    fromDt: event.fromDt ? new Date(event.fromDt * 1000).toISOString() : '',
-    toDt: event.toDt ? new Date(event.toDt * 1000).toISOString() : '',
+    eventTypeId: scheduleEvent.eventTypeId,
+    mediaId: scheduleEvent.mediaId ?? null,
+    campaignId: scheduleEvent.fullScreenCampaignId ?? scheduleEvent.campaignId ?? null,
+    commandId: scheduleEvent.commandId ?? null,
+    playlistId: scheduleEvent.playlistId ?? null,
+    displaySpecificGroupIds: scheduleEvent.displayGroups
+      .filter((dg) => dg.isDisplaySpecific === 1)
+      .map((dg) => dg.displayGroupId),
+    displayGroupIds: scheduleEvent.displayGroups
+      .filter((dg) => dg.isDisplaySpecific !== 1)
+      .map((dg) => dg.displayGroupId),
+    dayPartId: String(scheduleEvent.dayPartId),
+    fromDt: scheduleEvent.fromDt ? new Date(scheduleEvent.fromDt * 1000).toISOString() : '',
+    toDt: scheduleEvent.toDt ? new Date(scheduleEvent.toDt * 1000).toISOString() : '',
     useRelativeTime: false,
     relativeHours: 0,
     relativeMinutes: 0,
     relativeSeconds: 0,
-    name: event.name ?? '',
-    layoutDuration: event.layoutDuration ?? 0,
-    resolutionId: event.resolutionId ? String(event.resolutionId) : '',
-    backgroundColor: event.backgroundColor ?? '#000000',
-    displayOrder: event.displayOrder ?? 0,
-    isPriority: event.isPriority ?? 0,
-    maxPlaysPerHour: event.maxPlaysPerHour ?? 0,
-    syncTimezone: event.syncTimezone === 1,
-    recurrenceType: event.recurrenceType ?? '',
-    recurrenceDetail: event.recurrenceDetail ?? 1,
-    recurrenceRepeatsOn: event.recurrenceRepeatsOn ? event.recurrenceRepeatsOn.split(',') : [],
-    recurrenceMonthlyRepeatsOn: event.recurrenceMonthlyRepeatsOn ?? 0,
-    recurrenceRange: event.recurrenceRange
-      ? new Date(event.recurrenceRange * 1000).toISOString()
+    name: scheduleEvent.name ?? '',
+    layoutDuration: scheduleEvent.layoutDuration ?? 0,
+    resolutionId: scheduleEvent.resolutionId ? String(scheduleEvent.resolutionId) : '',
+    backgroundColor: scheduleEvent.backgroundColor ?? '#000000',
+    displayOrder: scheduleEvent.displayOrder ?? 0,
+    isPriority: scheduleEvent.isPriority ?? 0,
+    maxPlaysPerHour: scheduleEvent.maxPlaysPerHour ?? 0,
+    syncTimezone: scheduleEvent.syncTimezone === 1,
+    recurrenceType: scheduleEvent.recurrenceType ?? '',
+    recurrenceDetail: scheduleEvent.recurrenceDetail ?? 1,
+    recurrenceRepeatsOn: scheduleEvent.recurrenceRepeatsOn
+      ? scheduleEvent.recurrenceRepeatsOn.split(',')
+      : [],
+    recurrenceMonthlyRepeatsOn: scheduleEvent.recurrenceMonthlyRepeatsOn ?? 0,
+    recurrenceRange: scheduleEvent.recurrenceRange
+      ? new Date(scheduleEvent.recurrenceRange * 1000).toISOString()
       : '',
     reminders:
-      event.scheduleReminders.length > 0
-        ? event.scheduleReminders.map((r) => ({
+      scheduleEvent.scheduleReminders.length > 0
+        ? scheduleEvent.scheduleReminders.map((r) => ({
             value: r.value,
             type: r.type,
             option: r.option,
             isEmail: r.isEmail === 1,
           }))
         : [{ ...EMPTY_REMINDER }],
-    isGeoAware: event.isGeoAware === 1,
+    isGeoAware: scheduleEvent.isGeoAware === 1,
     criteria:
-      event.criteria.length > 0
-        ? event.criteria.map((c) => ({
+      scheduleEvent.criteria.length > 0
+        ? scheduleEvent.criteria.map((c) => ({
             type: c.type,
             metric: c.metric,
             condition: c.condition,
@@ -331,7 +347,11 @@ export function getPrefilledOption(contentId?: number, contentName?: string): Se
   return null;
 }
 
-export function buildSteps(currentStep: number, t: (key: string) => string) {
+export function buildSteps(
+  currentStep: number,
+  maxReachedStep: number,
+  t: (key: string) => string,
+) {
   const isLastStep = currentStep === STEP_LABELS.length - 1;
 
   return STEP_LABELS.map((label, index) => ({
@@ -341,6 +361,8 @@ export function buildSteps(currentStep: number, t: (key: string) => string) {
         ? ('completed' as const)
         : index === currentStep
           ? ('active' as const)
-          : ('inactive' as const),
+          : index <= maxReachedStep
+            ? ('reachable' as const)
+            : ('inactive' as const),
   }));
 }

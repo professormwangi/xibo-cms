@@ -20,6 +20,7 @@
  */
 
 import { Trash2Icon } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import Modal from '@/components/ui/modals/Modal';
@@ -28,8 +29,10 @@ interface DeleteEventModalProps {
   isOpen?: boolean;
   onClose: () => void;
   onDelete: () => void;
+  onDeleteOccurrence?: () => void;
   itemCount: number;
   eventName?: string;
+  isRecurring?: boolean;
   error?: string | null;
   isLoading?: boolean;
 }
@@ -38,12 +41,32 @@ export default function DeleteEventModal({
   isOpen = true,
   onClose,
   onDelete,
+  onDeleteOccurrence,
   eventName,
   isLoading,
   itemCount,
+  isRecurring,
   error,
 }: DeleteEventModalProps) {
   const { t } = useTranslation();
+  const [deleteScope, setDeleteScope] = useState<'occurrence' | 'series'>('occurrence');
+
+  useEffect(() => {
+    if (isOpen) {
+      setDeleteScope('occurrence');
+    }
+  }, [isOpen]);
+
+  const showRadio = isRecurring && itemCount === 1 && onDeleteOccurrence;
+
+  const handleConfirm = () => {
+    if (showRadio && deleteScope === 'occurrence') {
+      onDeleteOccurrence();
+    } else {
+      onDelete();
+    }
+  };
+
   return (
     <Modal
       isOpen={isOpen}
@@ -56,12 +79,12 @@ export default function DeleteEventModal({
           variant: 'secondary',
         },
         {
-          label: isLoading ? t('Deleting…') : t('Yes, Delete'),
-          onClick: () => onDelete(),
+          label: isLoading ? t('Deleting…') : t('Yes, delete'),
+          onClick: handleConfirm,
           disabled: isLoading,
         },
       ]}
-      size="md"
+      size="sm"
     >
       <div className="flex flex-col p-5 gap-3">
         <div>
@@ -70,23 +93,57 @@ export default function DeleteEventModal({
               <Trash2Icon size={26} />
             </div>
           </div>
-          <h2 className="text-center text-lg font-semibold mb-2 text-red-800">
-            {itemCount === 1 ? t('Delete Event?') : t('Delete Events?')}
+          <h2 className="text-center text-lg mb-2 text-gray-800">
+            {itemCount === 1 ? (
+              <>
+                {t('Delete ')}
+                <span className="font-semibold">
+                  {eventName ? <>&ldquo;{eventName}&rdquo;</> : t('this event')}
+                </span>
+                ?
+              </>
+            ) : (
+              t('Delete Events?')
+            )}
           </h2>
         </div>
-        <p className="text-center text-gray-500">
-          {itemCount === 1 ? (
-            <>
-              {t('Are you sure you want to delete ')}
-              {eventName ? <strong>"{eventName}"</strong> : t('this event')}?
-            </>
-          ) : (
-            <>
-              {t('Are you sure you want to delete ')}
-              <strong>{itemCount}</strong> {t('events')}?
-            </>
-          )}
-        </p>
+
+        {showRadio ? (
+          <div className="flex flex-col gap-3 mt-1 px-3">
+            {(
+              [
+                { value: 'occurrence', label: t('This instance only') },
+                { value: 'series', label: t('The entire recurring event') },
+              ] as const
+            ).map(({ value, label }) => (
+              <label key={value} className="flex items-center gap-4 cursor-pointer">
+                <input
+                  type="radio"
+                  name="deleteScope"
+                  value={value}
+                  checked={deleteScope === value}
+                  onChange={() => setDeleteScope(value)}
+                  className="w-4 h-4 accent-xibo-blue-600"
+                />
+                <span className="font-semibold text-gray-800">{label}</span>
+              </label>
+            ))}
+          </div>
+        ) : (
+          <p className="text-center text-gray-500">
+            {itemCount === 1 ? (
+              <>
+                {t('Are you sure you want to delete ')}
+                {eventName ? <strong>&ldquo;{eventName}&rdquo;</strong> : t('this event')}?
+              </>
+            ) : (
+              <>
+                {t('Are you sure you want to delete ')}
+                <strong>{itemCount}</strong> {t('events')}?
+              </>
+            )}
+          </p>
+        )}
 
         {error && (
           <div className="mt-2 text-center">

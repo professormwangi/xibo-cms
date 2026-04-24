@@ -25,12 +25,25 @@ import { useTranslation } from 'react-i18next';
 
 import Button from '@/components/ui/Button';
 import DatePicker from '@/components/ui/DatePicker';
+import MonthPicker from '@/components/ui/MonthPicker';
 import { formatDateTime } from '@/utils/date';
 
 type ViewMode = 'day' | 'week' | 'month' | 'year' | 'custom' | 'always';
 
+export interface DateRangeControllerState {
+  viewMode: ViewMode;
+  currentDate: string;
+  customFrom: string;
+  customTo: string;
+}
+
 interface DateRangeControllerProps {
   onDateRangeChange: (fromDt: string | undefined, toDt: string | undefined) => void;
+  onDateChange?: (date: Date) => void;
+  lockedViewMode?: ViewMode;
+  initialState?: Partial<DateRangeControllerState> | null;
+  isReady?: boolean;
+  onStateChange?: (state: DateRangeControllerState) => void;
 }
 
 function startOfDay(date: Date): Date {
@@ -78,6 +91,11 @@ function startOfYear(date: Date): Date {
 
 function endOfYear(date: Date): Date {
   return new Date(date.getFullYear(), 11, 31, 23, 59, 59, 999);
+}
+
+function toLocalISO(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
 function computeRange(mode: ViewMode, date: Date): { from: Date; to: Date } | null {
@@ -165,18 +183,32 @@ const VIEW_MODE_OPTIONS: { value: ViewMode; label: string }[] = [
   { value: 'custom', label: 'Custom' },
 ];
 
-export function DateRangeController({ onDateRangeChange }: DateRangeControllerProps) {
+export function DateRangeController({
+  onDateRangeChange,
+  onDateChange,
+  lockedViewMode,
+  initialState,
+  isReady = false,
+  onStateChange,
+}: DateRangeControllerProps) {
   const { t } = useTranslation();
 
-  const [viewMode, setViewMode] = useState<ViewMode>('day');
-  const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
-  const [customFrom, setCustomFrom] = useState('');
-  const [customTo, setCustomTo] = useState('');
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    lockedViewMode ?? initialState?.viewMode ?? 'day',
+  );
+  const [currentDate, setCurrentDate] = useState<Date>(() =>
+    initialState?.currentDate ? new Date(initialState.currentDate) : new Date(),
+  );
+  const [customFrom, setCustomFrom] = useState(initialState?.customFrom ?? '');
+  const [customTo, setCustomTo] = useState(initialState?.customTo ?? '');
   const [showViewDropdown, setShowViewDropdown] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const datePickerRef = useRef<HTMLDivElement>(null);
+  const monthPickerRef = useRef<HTMLDivElement>(null);
+  const hasHydrated = useRef(false);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -186,10 +218,54 @@ export function DateRangeController({ onDateRangeChange }: DateRangeControllerPr
       if (datePickerRef.current && !datePickerRef.current.contains(e.target as Node)) {
         setShowDatePicker(false);
       }
+      if (monthPickerRef.current && !monthPickerRef.current.contains(e.target as Node)) {
+        setShowMonthPicker(false);
+      }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (!isReady || hasHydrated.current) {
+      return;
+    }
+    hasHydrated.current = true;
+    if (initialState?.viewMode) {
+      setViewMode(initialState.viewMode);
+    }
+    if (initialState?.currentDate) {
+      setCurrentDate(new Date(initialState.currentDate));
+    }
+    if (initialState?.customFrom !== undefined) {
+      setCustomFrom(initialState.customFrom);
+    }
+    if (initialState?.customTo !== undefined) {
+      setCustomTo(initialState.customTo);
+    }
+  }, [isReady, initialState]);
+
+  useEffect(() => {
+    if (lockedViewMode) {
+      setViewMode(lockedViewMode);
+    }
+  }, [lockedViewMode]);
+
+  useEffect(() => {
+    onDateChange?.(currentDate);
+  }, [currentDate, onDateChange]);
+
+  useEffect(() => {
+    if (!hasHydrated.current) {
+      return;
+    }
+    onStateChange?.({
+      viewMode,
+      currentDate: currentDate.toISOString(),
+      customFrom,
+      customTo,
+    });
+  }, [viewMode, currentDate, customFrom, customTo, onStateChange]);
 
   useEffect(() => {
     if (viewMode === 'always') {
@@ -237,31 +313,55 @@ export function DateRangeController({ onDateRangeChange }: DateRangeControllerPr
 
   return (
     <div className="w-full lg:flex-1 md:min-w-0 flex items-center gap-3 flex-wrap">
-      <div className="relative" ref={dropdownRef}>
-        <Button
-          rightIcon={ChevronDown}
-          variant="tertiary"
-          onClick={() => setShowViewDropdown((prev) => !prev)}
-        >
-          {t(VIEW_MODE_OPTIONS.find((o) => o.value === viewMode)?.label ?? 'Day')}
-        </Button>
-        {showViewDropdown && (
-          <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-md min-w-27.5">
-            {VIEW_MODE_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => handleSelectViewMode(option.value)}
-                className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg ${
-                  viewMode === option.value ? 'font-semibold text-xibo-blue-600' : 'text-gray-700'
-                }`}
-              >
-                {t(option.label)}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      {!lockedViewMode && (
+        <div className="relative" ref={dropdownRef}>
+          <Button
+            rightIcon={ChevronDown}
+            variant="tertiary"
+            onClick={() => setShowViewDropdown((prev) => !prev)}
+          >
+            {t(VIEW_MODE_OPTIONS.find((o) => o.value === viewMode)?.label ?? 'Day')}
+          </Button>
+          {showViewDropdown && (
+            <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-md min-w-27.5">
+              {VIEW_MODE_OPTIONS.map((option) => (
+                <Button
+                  key={option.value}
+                  variant="tertiary"
+                  onClick={() => handleSelectViewMode(option.value)}
+                  className={`w-full justify-start rounded-none px-4 py-2 first:rounded-t-lg last:rounded-b-lg ${
+                    viewMode === option.value ? 'font-semibold text-xibo-blue-600' : 'text-gray-700'
+                  }`}
+                >
+                  {t(option.label)}
+                </Button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {viewMode === 'month' && lockedViewMode === 'month' && (
+        <div className="relative" ref={monthPickerRef}>
+          <Button
+            variant="tertiary"
+            rightIcon={Calendar}
+            onClick={() => setShowMonthPicker((prev) => !prev)}
+          />
+
+          {showMonthPicker && (
+            <div className="absolute left-0 top-full mt-1 z-50">
+              <MonthPicker
+                value={currentDate}
+                onChange={(date) => {
+                  setCurrentDate(date);
+                  setShowMonthPicker(false);
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {viewMode !== 'custom' && viewMode !== 'always' && (
         <>
@@ -269,10 +369,10 @@ export function DateRangeController({ onDateRangeChange }: DateRangeControllerPr
             {t('Today')}
           </Button>
           <Button variant="tertiary" className="text-xibo-blue-600" onClick={handlePrev}>
-            <ChevronLeft />
+            <ChevronLeft size={21} />
           </Button>
           <Button variant="tertiary" className="text-xibo-blue-600" onClick={handleNext}>
-            <ChevronRight />
+            <ChevronRight size={21} />
           </Button>
         </>
       )}
@@ -295,10 +395,6 @@ export function DateRangeController({ onDateRangeChange }: DateRangeControllerPr
                 }
                 onApply={(result) => {
                   if (result.type === 'range') {
-                    const toLocalISO = (d: Date) => {
-                      const p = (n: number) => String(n).padStart(2, '0');
-                      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-                    };
                     setCustomFrom(toLocalISO(result.from));
                     setCustomTo(toLocalISO(result.to));
                     setViewMode('custom');

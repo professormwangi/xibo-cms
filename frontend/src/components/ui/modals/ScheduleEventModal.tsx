@@ -28,13 +28,13 @@ import { notify } from '../Notification';
 import Stepper from '../Stepper';
 import Checkbox from '../forms/Checkbox';
 import DatePickerInput from '../forms/DatePickerInput';
-import MultiSelectDropdown from '../forms/MultiSelectDropdown';
 import NumberInput from '../forms/NumberInput';
 import SelectDropdown from '../forms/SelectDropdown';
 import TextInput from '../forms/TextInput';
 
 import Modal, { type ModalAction } from './Modal';
 
+import { DisplayGroupMultiSelect } from '@/pages/Schedule/Schedule/components/DisplayGroupMultiSelect';
 import {
   type DraftCriterion,
   type DraftReminder,
@@ -64,7 +64,6 @@ import { getScheduleEventSchema } from '@/schema/scheduleEvent';
 import { fetchCampaigns } from '@/services/campaignApi';
 import { fetchCommands } from '@/services/commandApi';
 import { fetchDaypart } from '@/services/daypartApi';
-import { fetchDisplayGroups } from '@/services/displayGroupApi';
 import { createEvent, updateEvent } from '@/services/eventApi';
 import { fetchLayouts } from '@/services/layoutsApi';
 import { fetchMedia } from '@/services/mediaApi';
@@ -77,6 +76,7 @@ type ScheduleModalMode = 'add' | 'schedule' | 'edit';
 interface ScheduleEventModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSaved?: () => void;
   mode?: ScheduleModalMode;
   eventTypeId?: EventTypeId;
   contentId?: number;
@@ -87,6 +87,7 @@ interface ScheduleEventModalProps {
 export default function ScheduleEventModal({
   isOpen,
   onClose,
+  onSaved,
   mode = 'add',
   eventTypeId: prefilledEventTypeId,
   contentId,
@@ -97,7 +98,14 @@ export default function ScheduleEventModal({
 
   const isEditMode = mode === 'edit' && !!event;
   const initialStep = isEditMode ? 0 : contentId ? 1 : 0;
+  const initialMaxStep = isEditMode ? STEP_LABELS.length - 1 : initialStep;
   const [currentStep, setCurrentStep] = useState(initialStep);
+  const [maxReachedStep, setMaxReachedStep] = useState(initialMaxStep);
+
+  const goToStep = (step: number) => {
+    setCurrentStep(step);
+    setMaxReachedStep((prev) => Math.max(prev, step));
+  };
   const [draft, setDraft] = useState<ScheduleEventDraft>(() =>
     isEditMode ? createDraftFromEvent(event) : createInitialDraft(prefilledEventTypeId, contentId),
   );
@@ -106,7 +114,6 @@ export default function ScheduleEventModal({
   const [contentOptions, setContentOptions] = useState<SelectOption[]>([]);
   const [isLoadingContent, setIsLoadingContent] = useState(false);
   const [showDisplayBanner, setShowDisplayBanner] = useState(false);
-  const [displayGroupOptions, setDisplayGroupOptions] = useState<SelectOption[]>([]);
   const [daypartOptions, setDaypartOptions] = useState<SelectOption[]>([]);
   const [resolutionOptions, setResolutionOptions] = useState<SelectOption[]>([]);
 
@@ -117,10 +124,10 @@ export default function ScheduleEventModal({
   const [apiError, setApiError] = useState<string | undefined>();
   const [formErrors, setFormErrors] = useState<ScheduleFormErrors>({});
 
-  const steps = buildSteps(currentStep, t);
+  const steps = buildSteps(currentStep, maxReachedStep, t);
   const isFirstStep = currentStep === 0;
   const isLastStep = currentStep === STEP_LABELS.length - 1;
-  const hasDisplays = draft.displayGroupIds.length > 0;
+  const hasDisplays = draft.displaySpecificGroupIds.length > 0 || draft.displayGroupIds.length > 0;
   const hasContent = (() => {
     if (!draft.eventTypeId) return false;
     if (
@@ -137,13 +144,16 @@ export default function ScheduleEventModal({
     if (draft.eventTypeId === EventTypeId.Playlist) return !!(draft.playlistId || draft.campaignId);
     return true;
   })();
-  const canFinish = currentStep >= 1 && hasDisplays;
+  const canFinish = (currentStep >= 1 || isEditMode) && hasDisplays;
 
   const isAlwaysDaypart = draft.dayPartId === alwaysDayPartId;
   const isCustomDaypart = draft.dayPartId === customDayPartId;
   const isNamedDaypart = draft.dayPartId !== '' && !isAlwaysDaypart && !isCustomDaypart;
   const showRepeatReminder = !isAlwaysDaypart && draft.dayPartId !== '';
   const isScheduleMode = mode === 'schedule';
+  const isFullScreenEvent =
+    draft.eventTypeId === EventTypeId.Media || draft.eventTypeId === EventTypeId.Playlist;
+  const showFullScreenFields = isScheduleMode || (isEditMode && isFullScreenEvent);
 
   const isStep3Valid = (() => {
     if (isCustomDaypart && draft.useRelativeTime) {
@@ -165,12 +175,6 @@ export default function ScheduleEventModal({
 
   useEffect(() => {
     if (!isOpen) return;
-
-    fetchDisplayGroups({ start: 0, length: 100 }).then(({ rows }) => {
-      setDisplayGroupOptions(
-        rows.map((dg) => ({ value: String(dg.displayGroupId), label: dg.displayGroup })),
-      );
-    });
 
     fetchDaypart({ start: 0, length: 100 }).then(({ rows }) => {
       setDaypartOptions(rows.map((dp) => ({ value: String(dp.dayPartId), label: dp.name })));
@@ -308,7 +312,7 @@ export default function ScheduleEventModal({
   };
 
   const goNext = () => {
-    if (!isLastStep) setCurrentStep((prev) => prev + 1);
+    if (!isLastStep) goToStep(currentStep + 1);
   };
 
   const goBack = () => {
@@ -353,7 +357,7 @@ export default function ScheduleEventModal({
     }
 
     const eventTypeId = draft.eventTypeId!;
-    const displayGroupIds = draft.displayGroupIds.map(Number);
+    const displayGroupIds = [...draft.displaySpecificGroupIds, ...draft.displayGroupIds];
 
     startTransition(async () => {
       try {
@@ -451,6 +455,7 @@ export default function ScheduleEventModal({
           await createEvent(payload);
           notify.success(t('Added Event'));
         }
+        onSaved?.();
         onClose();
       } catch (error) {
         setApiError(
@@ -462,6 +467,7 @@ export default function ScheduleEventModal({
 
   const handleClose = () => {
     setCurrentStep(initialStep);
+    setMaxReachedStep(initialMaxStep);
     setDraft(
       isEditMode
         ? createDraftFromEvent(event)
@@ -551,7 +557,7 @@ export default function ScheduleEventModal({
       <div className="flex flex-col flex-1 min-h-0 max-h-full">
         {/* Stepper */}
         <div className="shrink-0 px-8">
-          <Stepper steps={steps} activeIndex={currentStep} />
+          <Stepper steps={steps} activeIndex={currentStep} onStepClick={goToStep} />
         </div>
 
         {/* Info Banners */}
@@ -627,19 +633,32 @@ export default function ScheduleEventModal({
           {/* ── Step 2: Displays ── */}
           {currentStep === 1 && (
             <div className="space-y-4">
-              <MultiSelectDropdown
-                label={t('Display')}
-                value={draft.displayGroupIds}
-                options={displayGroupOptions}
-                onChange={(values) => updateDraft('displayGroupIds', values)}
-                placeholder={t('Select Displays/Groups')}
-                helpText={t(
-                  'Please select one or more Displays/Groups for this event to be shown on.',
+              <div className="flex flex-col gap-1 w-full">
+                <label className="text-sm font-semibold text-gray-500 leading-5">
+                  {t('Display')}
+                </label>
+                <DisplayGroupMultiSelect
+                  triggerClassName="bg-white"
+                  value={{
+                    displaySpecificGroupIds: draft.displaySpecificGroupIds,
+                    displayGroupIds: draft.displayGroupIds,
+                  }}
+                  onChange={({ displaySpecificGroupIds, displayGroupIds }) => {
+                    setDraft((prev) => ({ ...prev, displaySpecificGroupIds, displayGroupIds }));
+                    setShowDisplayBanner(
+                      displaySpecificGroupIds.length > 0 || displayGroupIds.length > 0,
+                    );
+                  }}
+                />
+                {formErrors.displayGroupIds ? (
+                  <p className="text-xs text-red-600 ml-2 mt-1">{formErrors.displayGroupIds}</p>
+                ) : (
+                  <span className="text-xs text-gray-400">
+                    {t('Please select one or more')} <strong>{t('Displays/Groups')}</strong>{' '}
+                    {t('for this event to be shown on.')}
+                  </span>
                 )}
-                showTags
-                onDropdownClose={() => setShowDisplayBanner(draft.displayGroupIds.length > 0)}
-                error={formErrors.displayGroupIds}
-              />
+              </div>
             </div>
           )}
 
@@ -676,11 +695,13 @@ export default function ScheduleEventModal({
                     label={t('Start Time')}
                     value={draft.fromDt}
                     onChange={(value) => updateDraft('fromDt', value)}
+                    error={formErrors.fromDt}
                   />
                   <DatePickerInput
                     label={t('End Time')}
                     value={draft.toDt}
                     onChange={(value) => updateDraft('toDt', value)}
+                    error={formErrors.toDt}
                   />
                 </div>
               )}
@@ -808,7 +829,7 @@ export default function ScheduleEventModal({
                     onChange={(value) => updateDraft('name', value)}
                     helpText={t('Optional Name for this Event (1-50 characters)')}
                   />
-                  {isScheduleMode && (
+                  {showFullScreenFields && (
                     <>
                       <NumberInput
                         name="layoutDuration"

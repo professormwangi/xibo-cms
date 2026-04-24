@@ -1837,6 +1837,29 @@ class Schedule extends Base
             }
         }
 
+        if ($schedule->isFullScreenSchedule()) {
+            $schedule->setUnmatchedProperty('fullScreenCampaignId', $schedule->campaignId);
+
+            if ($schedule->eventTypeId === \Xibo\Entity\Schedule::$MEDIA_EVENT) {
+                $schedule->setUnmatchedProperty(
+                    'mediaId',
+                    $this->layoutFactory->getLinkedFullScreenMediaId($schedule->campaignId)
+                );
+            } else {
+                $schedule->setUnmatchedProperty(
+                    'playlistId',
+                    $this->layoutFactory->getLinkedFullScreenPlaylistId($schedule->campaignId)
+                );
+            }
+
+            $fsLayout = $this->layoutFactory->getById(
+                $this->campaignFactory->getLinkedLayouts($schedule->campaignId)[0]->layoutId
+            );
+            $schedule->backgroundColor = $fsLayout->backgroundColor;
+            $schedule->layoutDuration = $fsLayout->duration;
+            $schedule->resolutionId = $this->layoutFactory->getLayoutResolutionId($fsLayout)->resolutionId;
+        }
+
         return $response
             ->withStatus(200)
             ->withJson($schedule);
@@ -2108,6 +2131,11 @@ class Schedule extends Base
                     !empty($repeatsUntil) ? ' until ' . $repeatsUntil : ''
                 ))
             );
+
+            $event->setUnmatchedProperty(
+                'scheduleExclusions',
+                $this->scheduleExclusionFactory->query(null, ['eventId' => $event->eventId])
+            );
         } else {
             $event->setUnmatchedProperty('recurringEventDescription', '');
         }
@@ -2126,11 +2154,15 @@ class Schedule extends Base
         // Set the row from/to date to be an ISO date for display (no timezone)
         $event->setUnmatchedProperty(
             'displayFromDt',
-            Carbon::createFromTimestamp($event->fromDt)->format(DateFormatHelper::getSystemFormat())
+            $event->fromDt !== null
+                ? Carbon::createFromTimestamp($event->fromDt)->format(DateFormatHelper::getSystemFormat())
+                : ''
         );
         $event->setUnmatchedProperty(
             'displayToDt',
-            Carbon::createFromTimestamp($event->toDt)->format(DateFormatHelper::getSystemFormat())
+            $event->toDt !== null
+                ? Carbon::createFromTimestamp($event->toDt)->format(DateFormatHelper::getSystemFormat())
+                : ''
         );
 
         $event->setUnmatchedProperty('isEditable', $this->isEventEditable($event));

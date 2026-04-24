@@ -46,6 +46,7 @@ interface EventModalsProps {
   };
   handlers: {
     confirmDelete: (items: Event[]) => void;
+    confirmDeleteOccurrence: (scheduleEvent: Event) => void;
     handleConfirmClone: (name: string) => void;
   };
 }
@@ -53,18 +54,28 @@ interface EventModalsProps {
 export function EventModals({ actions, selection, handlers }: EventModalsProps) {
   const isModalOpen = (name: string) => actions.activeModal === name;
 
+  const singleEvent = selection.itemsToDelete.length === 1 ? selection.itemsToDelete[0] : null;
+
+  const eventDisplayName = singleEvent
+    ? [singleEvent.name, singleEvent.campaign ?? singleEvent.command].filter(Boolean).join(' - ') ||
+      undefined
+    : undefined;
+
+  const isRecurring =
+    singleEvent !== null && !!singleEvent?.recurrenceType && singleEvent.recurrenceType !== 'None';
+
   return (
     <>
       {isModalOpen('delete') && (
         <DeleteEventModal
           onClose={actions.closeModal}
           onDelete={() => handlers.confirmDelete(selection.itemsToDelete)}
-          itemCount={selection.itemsToDelete.length}
-          eventName={
-            selection.itemsToDelete.length === 1
-              ? (selection.itemsToDelete[0]?.name ?? undefined)
-              : undefined
+          onDeleteOccurrence={
+            singleEvent ? () => handlers.confirmDeleteOccurrence(singleEvent) : undefined
           }
+          itemCount={selection.itemsToDelete.length}
+          eventName={eventDisplayName}
+          isRecurring={isRecurring}
           error={actions.deleteError}
           isLoading={actions.isDeleting}
         />
@@ -74,29 +85,21 @@ export function EventModals({ actions, selection, handlers }: EventModalsProps) 
         <CopyEventModal
           onClose={actions.closeModal}
           onConfirm={(name) => handlers.handleConfirmClone(name)}
-          event={selection.selectedEvent}
+          scheduleEvent={selection.selectedEvent}
           isLoading={actions.isCloning}
           existingNames={selection.existingNames}
         />
       )}
 
       {isModalOpen('schedule') && (
-        <ScheduleEventModal
-          isOpen
-          onClose={() => {
-            actions.closeModal();
-            actions.handleRefresh();
-          }}
-        />
+        <ScheduleEventModal isOpen onClose={actions.closeModal} onSaved={actions.handleRefresh} />
       )}
 
       {isModalOpen('edit') && selection.selectedEvent && (
         <ScheduleEventModal
           isOpen
-          onClose={() => {
-            actions.closeModal();
-            actions.handleRefresh();
-          }}
+          onClose={actions.closeModal}
+          onSaved={actions.handleRefresh}
           mode="edit"
           event={selection.selectedEvent}
         />

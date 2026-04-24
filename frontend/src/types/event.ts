@@ -142,6 +142,7 @@ export interface Event {
   displayGroups: DisplayGroup[];
   scheduleReminders: ScheduleReminder[];
   criteria: ScheduleCriteria[];
+  scheduleExclusions?: { fromDt: number; toDt: number }[];
 
   recurrenceType?: RecurrenceType | null;
   recurrenceDetail?: number | null;
@@ -175,5 +176,8 @@ export interface Event {
   resolutionId?: number;
   layoutDuration?: number;
   backgroundColor?: string;
+  mediaId?: number | null;
+  playlistId?: number | null;
+  fullScreenCampaignId?: number | null;
   isEditable?: boolean;
 }

@@ -42,6 +42,7 @@ interface DatePickerInputProps {
   value?: string;
   onChange: (value: string) => void;
   helpText?: string;
+  error?: string;
   disablePastDates?: boolean;
   disableFutureDates?: boolean;
   showTimePicker?: boolean;
@@ -52,6 +53,7 @@ export default function DatePickerInput({
   value,
   onChange,
   helpText,
+  error,
   disablePastDates = false,
   disableFutureDates = false,
   showTimePicker = true,
@@ -118,7 +120,11 @@ export default function DatePickerInput({
         )}
       </div>
 
-      {helpText && <p className="text-xs text-gray-400">{helpText}</p>}
+      {error ? (
+        <p className="text-xs text-red-600 ml-2 mt-1">{error}</p>
+      ) : (
+        helpText && <p className="text-xs text-gray-400">{helpText}</p>
+      )}
 
       <FloatingPortal>
         {isOpen && (

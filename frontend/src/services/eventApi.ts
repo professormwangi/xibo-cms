@@ -76,6 +76,17 @@ export async function deleteEvent(eventId: number | string): Promise<void> {
   });
 }
 
+export async function deleteEventOccurrence(
+  eventId: number | string,
+  eventStart: number,
+  eventEnd: number,
+): Promise<void> {
+  await http.delete(`/schedulerecurrence/${eventId}`, {
+    params: { eventStart, eventEnd },
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+  });
+}
+
 export interface CloneEventRequest {
   eventId: number | string;
   name: string;

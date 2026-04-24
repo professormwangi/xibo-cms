@@ -19,10 +19,10 @@
  * along with Xibo.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { RowSelectionState } from '@tanstack/react-table';
-import { Search, Filter, FilterX, Plus } from 'lucide-react';
-import { useState } from 'react';
+import { Filter, FilterX, Plus } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { ModalType } from './EventsConfig';
@@ -32,7 +32,12 @@ import {
   INITIAL_FILTER_STATE,
   type EventFilterInput,
 } from './EventsConfig';
-import { DateRangeController } from './components/DateRangeController';
+import {
+  DateRangeController,
+  type DateRangeControllerState,
+} from './components/DateRangeController';
+import { DisplayGroupMultiSelect } from './components/DisplayGroupMultiSelect';
+import { EventCalendar } from './components/EventCalendar';
 import { EventModals } from './components/EventModals';
 import { useEventActions } from './hooks/useEventActions';
 import { useEventData } from './hooks/useEventData';
@@ -41,10 +46,14 @@ import { useEventFilterOptions } from './hooks/useEventFilterOptions';
 import Button from '@/components/ui/Button';
 import FilterInputs from '@/components/ui/FilterInputs';
 import TabNav from '@/components/ui/TabNav';
+import { DataCalendar } from '@/components/ui/table/DataCalendar';
 import { DataTable } from '@/components/ui/table/DataTable';
 import { useFilteredTabs } from '@/hooks/useFilteredTabs';
 import { useTableState } from '@/hooks/useTableState';
+import { fetchUserPreference, saveUserPreference } from '@/services/userApi';
 import type { Event } from '@/types/event';
+
+const DATE_RANGE_PREF_KEY = 'event_page_date_range';
 
 export default function Events() {
   const { t } = useTranslation();
@@ -57,11 +66,10 @@ export default function Events() {
     setSorting,
     columnVisibility,
     setColumnVisibility,
-    globalFilter,
-    debouncedFilter,
-    setGlobalFilter,
     filterInputs,
     setFilterInputs,
+    viewMode,
+    setViewMode,
     isHydrated,
   } = useTableState<EventFilterInput>('event_page', {
     pagination: { pageIndex: 0, pageSize: 10 },
@@ -95,9 +103,50 @@ export default function Events() {
     filterInputs: INITIAL_FILTER_STATE,
   });
 
+  const { data: dateRangePrefs, isSuccess: dateRangeReady } = useQuery({
+    queryKey: ['userPref', DATE_RANGE_PREF_KEY],
+    queryFn: () => fetchUserPreference<DateRangeControllerState>(DATE_RANGE_PREF_KEY),
+    staleTime: Infinity,
+  });
+
+  const { mutate: saveDateRangePrefs } = useMutation({ mutationFn: saveUserPreference });
+
+  const dateRangeDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingDateRangeState = useRef<DateRangeControllerState | null>(null);
+
+  const flushDateRangePrefs = () => {
+    if (dateRangeDebounceRef.current) {
+      clearTimeout(dateRangeDebounceRef.current);
+      dateRangeDebounceRef.current = null;
+    }
+    if (pendingDateRangeState.current) {
+      const value = pendingDateRangeState.current as unknown as Record<string, unknown>;
+      saveDateRangePrefs({ option: DATE_RANGE_PREF_KEY, value });
+      queryClient.setQueryData(['userPref', DATE_RANGE_PREF_KEY], pendingDateRangeState.current);
+      pendingDateRangeState.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      flushDateRangePrefs();
+    };
+  }, []);
+
+  const handleDateRangeStateChange = (state: DateRangeControllerState) => {
+    pendingDateRangeState.current = state;
+    if (dateRangeDebounceRef.current) {
+      clearTimeout(dateRangeDebounceRef.current);
+    }
+    dateRangeDebounceRef.current = setTimeout(() => {
+      flushDateRangePrefs();
+    }, 500);
+  };
+
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [selectionCache, setSelectionCache] = useState<Record<string, Event>>({});
   const [openFilter, setOpenFilter] = useState(false);
+  const [calendarDate, setCalendarDate] = useState<Date>(() => new Date());
 
   const [activeModal, setActiveModal] = useState<ModalType | null>(null);
 
@@ -116,13 +165,23 @@ export default function Events() {
   } = useEventData({
     pagination,
     sorting,
-    filter: debouncedFilter,
+    filter: '',
     advancedFilters: filterInputs,
     enabled: isHydrated,
   });
 
   const data = queryData?.rows ?? [];
   const pageCount = Math.ceil((queryData?.totalCount || 0) / pagination.pageSize);
+
+  const { data: calendarQueryData, isFetching: isCalendarFetching } = useEventData({
+    pagination: { pageIndex: 0, pageSize: 500 },
+    sorting: [],
+    filter: '',
+    advancedFilters: filterInputs,
+    enabled: isHydrated && viewMode === 'calendar',
+  });
+
+  const calendarEvents = calendarQueryData?.rows ?? [];
   const error = isError && queryError instanceof Error ? queryError.message : '';
 
   const getRowId = (row: Event) => {
@@ -149,20 +208,30 @@ export default function Events() {
     });
   };
 
-  const selectedEvent = data.find((m) => m.eventId === selectedEventId) ?? null;
+  const selectedEvent =
+    data.find((m) => m.eventId === selectedEventId) ??
+    calendarEvents.find((m) => m.eventId === selectedEventId) ??
+    null;
   const existingNames = data.map((m) => m.name ?? '');
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['event'] });
   };
 
-  const { isDeleting, isCloning, deleteError, setDeleteError, confirmDelete, handleConfirmClone } =
-    useEventActions({
-      t,
-      handleRefresh,
-      closeModal,
-      setRowSelection,
-    });
+  const {
+    isDeleting,
+    isCloning,
+    deleteError,
+    setDeleteError,
+    confirmDelete,
+    confirmDeleteOccurrence,
+    handleConfirmClone,
+  } = useEventActions({
+    t,
+    handleRefresh,
+    closeModal,
+    setRowSelection,
+  });
 
   const handleDelete = (id: number) => {
     const event = data.find((m) => m.eventId === id);
@@ -173,9 +242,15 @@ export default function Events() {
     openModal('delete');
   };
 
-  const openAddEditModal = (event: Event | null) => {
-    if (event) {
-      setSelectedEventId(event.eventId);
+  const handleDeleteFromCalendar = (scheduleEvent: Event) => {
+    setItemsToDelete([scheduleEvent]);
+    setDeleteError(null);
+    openModal('delete');
+  };
+
+  const openAddEditModal = (scheduleEvent: Event | null) => {
+    if (scheduleEvent) {
+      setSelectedEventId(scheduleEvent.eventId);
       openModal('edit');
     } else {
       setSelectedEventId(null);
@@ -252,24 +327,30 @@ export default function Events() {
               }));
               setPagination((prev) => ({ ...prev, pageIndex: 0 }));
             }}
+            onDateChange={viewMode === 'calendar' ? setCalendarDate : undefined}
+            lockedViewMode={viewMode === 'calendar' ? ('month' as const) : undefined}
+            initialState={dateRangePrefs}
+            isReady={dateRangeReady}
+            onStateChange={handleDateRangeStateChange}
           />
-          <div className="flex items-center gap-2 w-full xl:w-115 lg:w-75 shrink-0">
-            <div className="relative flex-1 flex">
-              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <Search className="w-4 h-4 text-gray-400" />
-              </div>
-              <input
-                name="search"
-                value={globalFilter}
-                disabled={!isHydrated}
-                onChange={(e) => {
-                  setGlobalFilter(e.target.value);
-                  setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-                }}
-                placeholder={t('Search')}
-                className="py-2 px-3 pl-10 block h-11.25 bg-gray-100 rounded-lg w-full border-gray-200 disabled:opacity-50 disabled:pointer-events-none disabled:bg-gray-200"
-              />
-            </div>
+          <div className="flex items-center gap-2 min-w-100 max-w-200 shrink-0">
+            <DisplayGroupMultiSelect
+              disabled={!isHydrated}
+              value={{
+                displaySpecificGroupIds: filterInputs.displaySpecificGroupIds ?? [],
+                displayGroupIds: filterInputs.displayGroupIds ?? [],
+              }}
+              onChange={({ displaySpecificGroupIds, displayGroupIds }) => {
+                setFilterInputs((prev) => ({
+                  ...prev,
+                  displaySpecificGroupIds: displaySpecificGroupIds.length
+                    ? displaySpecificGroupIds
+                    : null,
+                  displayGroupIds: displayGroupIds.length ? displayGroupIds : null,
+                }));
+                setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+              }}
+            />
             <Button
               leftIcon={!openFilter ? Filter : FilterX}
               variant="secondary"
@@ -306,13 +387,28 @@ export default function Events() {
           </div>
         )}
 
-        <div className="min-h-0 flex flex-col">
+        <div className="min-h-0 flex flex-col flex-1">
           {!isHydrated ? (
             <div className="flex-1 flex items-center justify-center bg-gray-50 animate-pulse rounded-lg border border-gray-200">
               <span className="text-gray-400 font-medium">
                 {t('Loading your events preferences...')}
               </span>
             </div>
+          ) : viewMode === 'calendar' ? (
+            <DataCalendar
+              onRefresh={handleRefresh}
+              viewMode="calendar"
+              onViewModeChange={setViewMode}
+              availableViewModes={['table', 'calendar']}
+            >
+              <EventCalendar
+                date={calendarDate}
+                events={calendarEvents}
+                isLoading={isCalendarFetching}
+                onEditEvent={openAddEditModal}
+                onDeleteEvent={handleDeleteFromCalendar}
+              />
+            </DataCalendar>
           ) : (
             <DataTable
               columns={columns}
@@ -322,8 +418,8 @@ export default function Events() {
               onPaginationChange={setPagination}
               sorting={sorting}
               onSortingChange={setSorting}
-              globalFilter={globalFilter}
-              onGlobalFilterChange={setGlobalFilter}
+              globalFilter=""
+              onGlobalFilterChange={() => {}}
               loading={isFetching}
               rowSelection={rowSelection}
               onRowSelectionChange={handleRowSelectionChange}
@@ -332,7 +428,9 @@ export default function Events() {
               columnVisibility={columnVisibility}
               onColumnVisibilityChange={setColumnVisibility}
               bulkActions={bulkActions}
-              viewMode={null}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              availableViewModes={['table', 'calendar']}
               getRowId={getRowId}
             />
           )}
@@ -358,6 +456,7 @@ export default function Events() {
         }}
         handlers={{
           confirmDelete,
+          confirmDeleteOccurrence,
           handleConfirmClone: (name) => handleConfirmClone(selectedEvent, name),
         }}
       />

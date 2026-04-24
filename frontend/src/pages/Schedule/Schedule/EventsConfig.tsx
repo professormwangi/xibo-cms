@@ -51,11 +51,12 @@ import { formatDateTime } from '@/utils/date';
 
 export interface EventFilterInput {
   eventTypeId?: number | null;
+  name?: string | null;
   geoAware?: number | null;
   campaignId?: number | null;
   layoutCampaignId?: number | null;
-  displaySpecificGroupId?: number | null;
-  displayGroupId?: number | null;
+  displaySpecificGroupIds?: number[] | null;
+  displayGroupIds?: number[] | null;
   recurring?: number | null;
   directSchedule?: number | null;
   sharedSchedule?: number | null;
@@ -100,6 +101,13 @@ const EVENT_TYPE_STATUS: Record<number, UIStatus> = {
 
 export const getBaseFilterKeys = (t: TFunction): FilterConfigItem<EventFilterInput>[] => [
   {
+    label: t('Name'),
+    name: 'name',
+    type: 'text',
+    className: '',
+    placeholder: t('Event Name'),
+  },
+  {
     label: t('Event Type'),
     name: 'eventTypeId',
     showAllOption: true,
@@ -123,20 +131,6 @@ export const getBaseFilterKeys = (t: TFunction): FilterConfigItem<EventFilterInp
     options: [],
   },
   {
-    label: t('Display'),
-    name: 'displaySpecificGroupId',
-    type: 'paged-select',
-    placeholder: t('All'),
-    options: [],
-  },
-  {
-    label: t('Display Group'),
-    name: 'displayGroupId',
-    type: 'paged-select',
-    placeholder: t('All'),
-    options: [],
-  },
-  {
     label: t('Geo Aware'),
     name: 'geoAware',
     showAllOption: true,
@@ -145,7 +139,7 @@ export const getBaseFilterKeys = (t: TFunction): FilterConfigItem<EventFilterInp
     options: YES_NO_OPTIONS,
   },
   {
-    label: t('Recurring?'),
+    label: t('Recurring'),
     name: 'recurring',
     showAllOption: true,
     allLabel: t('All'),
@@ -153,7 +147,7 @@ export const getBaseFilterKeys = (t: TFunction): FilterConfigItem<EventFilterInp
     options: YES_NO_OPTIONS,
   },
   {
-    label: t('Direct Schedule?'),
+    label: t('Direct Schedule'),
     name: 'directSchedule',
     showAllOption: true,
     allLabel: t('All'),
@@ -161,7 +155,7 @@ export const getBaseFilterKeys = (t: TFunction): FilterConfigItem<EventFilterInp
     options: YES_NO_OPTIONS,
   },
   {
-    label: t('Shared Schedule?'),
+    label: t('Shared Schedule'),
     name: 'sharedSchedule',
     showAllOption: true,
     allLabel: t('All'),
@@ -182,13 +176,13 @@ export const getEventItemActions = ({
   onDelete,
   openAddEditModal,
   copyEvent,
-}: EventActionsProps): ((event: Event) => ActionItem[]) => {
-  return (event: Event) => {
+}: EventActionsProps): ((scheduleEvent: Event) => ActionItem[]) => {
+  return (scheduleEvent: Event) => {
     const actions: ActionItem[] = [
       {
         label: t('Edit'),
         icon: Edit,
-        onClick: () => openAddEditModal(event),
+        onClick: () => openAddEditModal(scheduleEvent),
         isQuickAction: true,
         variant: 'primary' as const,
       },
@@ -196,23 +190,23 @@ export const getEventItemActions = ({
         label: t('Make a Copy'),
         icon: CopyCheck,
         isQuickAction: true,
-        onClick: () => copyEvent && copyEvent(event.eventId),
+        onClick: () => copyEvent && copyEvent(scheduleEvent.eventId),
       },
       {
         label: t('Edit'),
         icon: Edit,
-        onClick: () => openAddEditModal(event),
+        onClick: () => openAddEditModal(scheduleEvent),
         variant: 'primary' as const,
       },
       {
         label: t('Make a Copy'),
         icon: CopyCheck,
-        onClick: () => copyEvent && copyEvent(event.eventId),
+        onClick: () => copyEvent && copyEvent(scheduleEvent.eventId),
       },
       {
         label: t('Delete'),
         icon: Trash2,
-        onClick: () => onDelete(event.eventId),
+        onClick: () => onDelete(scheduleEvent.eventId),
         variant: 'danger' as const,
       },
     ];
@@ -221,55 +215,119 @@ export const getEventItemActions = ({
   };
 };
 
-type EventBadge = {
+export type EventBadge = {
   icon: LucideIcon;
   label: string;
   bg: string;
   text: string;
 };
 
-const getEventBadge = (event: Event): EventBadge => {
+export const BADGE_VIEW_ONLY: EventBadge = {
+  icon: Lock,
+  label: 'View Only',
+  bg: 'bg-red-100',
+  text: 'text-red-800',
+};
+export const BADGE_SYNCHRONISED: EventBadge = {
+  icon: ArrowRightLeft,
+  label: 'Synchronised',
+  bg: 'bg-teal-100',
+  text: 'text-teal-800',
+};
+export const BADGE_INTERACTIVE: EventBadge = {
+  icon: MousePointer2,
+  label: 'Interactive',
+  bg: 'bg-gray-100',
+  text: 'text-gray-800',
+};
+export const BADGE_GEO_LOCATION: EventBadge = {
+  icon: MapPin,
+  label: 'Geo Location',
+  bg: 'bg-gray-100',
+  text: 'text-gray-800',
+};
+export const BADGE_INTERRUPT: EventBadge = {
+  icon: OctagonPause,
+  label: 'Interrupt',
+  bg: 'bg-red-100',
+  text: 'text-red-800',
+};
+export const BADGE_COMMAND: EventBadge = {
+  icon: Wrench,
+  label: 'Command',
+  bg: 'bg-gray-100',
+  text: 'text-gray-800',
+};
+export const BADGE_PRIORITY: EventBadge = {
+  icon: Goal,
+  label: 'Priority',
+  bg: 'bg-red-100',
+  text: 'text-red-800',
+};
+export const BADGE_RECURRING: EventBadge = {
+  icon: RefreshCw,
+  label: 'Recurring',
+  bg: 'bg-teal-100',
+  text: 'text-teal-800',
+};
+export const BADGE_ALWAYS_SHOWING: EventBadge = {
+  icon: Repeat2,
+  label: 'Always Showing',
+  bg: 'bg-teal-100',
+  text: 'text-teal-800',
+};
+export const BADGE_SINGLE_DISPLAY: EventBadge = {
+  icon: Monitor,
+  label: 'Single Display',
+  bg: 'bg-blue-100',
+  text: 'text-blue-800',
+};
+export const BADGE_MULTI_DISPLAY: EventBadge = {
+  icon: PictureInPicture2,
+  label: 'Multi Display',
+  bg: 'bg-blue-100',
+  text: 'text-blue-800',
+};
+
+export const EVENT_LEGEND_BADGES: EventBadge[][] = [
+  [BADGE_SINGLE_DISPLAY, BADGE_MULTI_DISPLAY],
+  [BADGE_ALWAYS_SHOWING, BADGE_RECURRING, BADGE_SYNCHRONISED],
+  [BADGE_PRIORITY, BADGE_INTERRUPT, BADGE_VIEW_ONLY],
+  [BADGE_COMMAND, BADGE_GEO_LOCATION, BADGE_INTERACTIVE],
+];
+
+export const getEventBadge = (event: Event): EventBadge => {
   if (event.isEditable === false) {
-    return { icon: Lock, label: 'View Only', bg: 'bg-red-100', text: 'text-red-800' };
+    return BADGE_VIEW_ONLY;
   }
   if (event.eventTypeId === EventTypeId.Sync) {
-    return {
-      icon: ArrowRightLeft,
-      label: 'Synchronised',
-      bg: 'bg-teal-100',
-      text: 'text-teal-800',
-    };
+    return BADGE_SYNCHRONISED;
   }
   if (event.eventTypeId === EventTypeId.Action) {
-    return { icon: MousePointer2, label: 'Interactive', bg: 'bg-gray-100', text: 'text-gray-800' };
+    return BADGE_INTERACTIVE;
   }
   if (event.isGeoAware === 1) {
-    return { icon: MapPin, label: 'Geo Location', bg: 'bg-gray-100', text: 'text-gray-800' };
+    return BADGE_GEO_LOCATION;
   }
   if (event.eventTypeId === EventTypeId.Interrupt) {
-    return { icon: OctagonPause, label: 'Interrupt', bg: 'bg-red-100', text: 'text-red-800' };
+    return BADGE_INTERRUPT;
   }
   if (event.eventTypeId === EventTypeId.Command) {
-    return { icon: Wrench, label: 'Command', bg: 'bg-gray-100', text: 'text-gray-800' };
+    return BADGE_COMMAND;
   }
   if (event.isPriority >= 1) {
-    return { icon: Goal, label: 'Priority', bg: 'bg-red-100', text: 'text-red-800' };
+    return BADGE_PRIORITY;
   }
   if (event.recurrenceType && event.recurrenceType !== 'None') {
-    return { icon: RefreshCw, label: 'Recurring', bg: 'bg-teal-100', text: 'text-teal-800' };
+    return BADGE_RECURRING;
   }
   if (event.isAlways === 1) {
-    return { icon: Repeat2, label: 'Always Showing', bg: 'bg-teal-100', text: 'text-teal-800' };
+    return BADGE_ALWAYS_SHOWING;
   }
   if (event.displayGroups.length <= 1) {
-    return { icon: Monitor, label: 'Single Display', bg: 'bg-blue-100', text: 'text-blue-800' };
+    return BADGE_SINGLE_DISPLAY;
   }
-  return {
-    icon: PictureInPicture2,
-    label: 'Multi Display',
-    bg: 'bg-blue-100',
-    text: 'text-blue-800',
-  };
+  return BADGE_MULTI_DISPLAY;
 };
 
 const formatUnixTimestamp = (ts: number | null | undefined): string => {
@@ -390,13 +448,13 @@ export const getEventColumns = (props: EventActionsProps): ColumnDef<Event>[] =>
     },
     {
       accessorKey: 'isGeoAware',
-      header: t('Geo Aware?'),
+      header: t('Geo Aware'),
       size: 110,
       cell: (info) => <CheckMarkCell active={info.getValue<number>() === 1} />,
     },
     {
       id: 'recurring',
-      header: t('Recurring?'),
+      header: t('Recurring'),
       size: 100,
       cell: ({ row }) => <CheckMarkCell active={Boolean(row.original.recurringEvent)} />,
     },
@@ -432,13 +490,13 @@ export const getEventColumns = (props: EventActionsProps): ColumnDef<Event>[] =>
     },
     {
       accessorKey: 'isPriority',
-      header: t('Priority?'),
+      header: t('Priority'),
       size: 90,
       cell: (info) => <CheckMarkCell active={info.getValue<number>() === 1} />,
     },
     {
       id: 'criteria',
-      header: t('Criteria?'),
+      header: t('Criteria'),
       size: 90,
       cell: ({ row }) => <CheckMarkCell active={row.original.criteria.length > 0} />,
     },

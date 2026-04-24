@@ -26,7 +26,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import { useState } from 'react';
 
 import { notify } from '@/components/ui/Notification';
-import { cloneEvent, deleteEvent } from '@/services/eventApi';
+import { cloneEvent, deleteEvent, deleteEventOccurrence } from '@/services/eventApi';
 import type { Event } from '@/types/event';
 
 interface UseEventActionsProps {
@@ -86,6 +86,24 @@ export function useEventActions({
     }
   };
 
+  const confirmDeleteOccurrence = async (scheduleEvent: Event) => {
+    try {
+      setIsDeleting(true);
+      await deleteEventOccurrence(scheduleEvent.eventId, scheduleEvent.fromDt, scheduleEvent.toDt);
+      handleRefresh();
+      closeModal();
+    } catch (error) {
+      console.error(error);
+      const message =
+        isAxiosError(error) && error.response?.data?.message
+          ? error.response.data.message
+          : t('Could not delete this occurrence.');
+      setDeleteError(message);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleConfirmClone = async (selectedEvent: Event | null, newName: string) => {
     if (!selectedEvent) {
       return;
@@ -115,6 +133,7 @@ export function useEventActions({
     deleteError,
     setDeleteError,
     confirmDelete,
+    confirmDeleteOccurrence,
     handleConfirmClone,
   };
 }

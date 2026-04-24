@@ -36,9 +36,8 @@ export const getScheduleEventSchema = (t: TFunction) =>
       commandId: z.number().nullable(),
       playlistId: z.number().nullable(),
 
-      displayGroupIds: z
-        .array(z.string())
-        .min(1, t('Please select at least one Display or Display Group')),
+      displaySpecificGroupIds: z.array(z.number()),
+      displayGroupIds: z.array(z.number()),
 
       dayPartId: z.string().min(1, t('Dayparting is required')),
 
@@ -85,6 +84,14 @@ export const getScheduleEventSchema = (t: TFunction) =>
       ),
     })
     .superRefine((data, ctx) => {
+      if (data.displaySpecificGroupIds.length === 0 && data.displayGroupIds.length === 0) {
+        ctx.addIssue({
+          path: ['displayGroupIds'],
+          code: z.ZodIssueCode.custom,
+          message: t('Please select at least one Display or Display Group'),
+        });
+      }
+
       const contentTypes = [
         EventTypeId.Layout,
         EventTypeId.Overlay,

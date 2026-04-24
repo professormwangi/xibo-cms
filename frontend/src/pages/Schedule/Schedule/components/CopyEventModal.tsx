@@ -31,7 +31,7 @@ interface CopyEventModalProps {
   isOpen?: boolean;
   onClose: () => void;
   onConfirm: (newName: string) => void;
-  event: Event | null;
+  scheduleEvent: Event | null;
   isLoading?: boolean;
   existingNames: string[];
 }
@@ -40,7 +40,7 @@ export default function CopyEventModal({
   isOpen = true,
   onClose,
   onConfirm,
-  event,
+  scheduleEvent,
   isLoading,
   existingNames,
 }: CopyEventModalProps) {
@@ -49,12 +49,12 @@ export default function CopyEventModal({
   const [error, setError] = useState<string | undefined>();
 
   useEffect(() => {
-    if (event && isOpen) {
-      setNewName(incrementName(event.name ?? ''));
+    if (scheduleEvent && isOpen) {
+      setNewName(incrementName(scheduleEvent.name ?? ''));
     }
 
     setError(undefined);
-  }, [event, isOpen]);
+  }, [scheduleEvent, isOpen]);
 
   const handleSave = () => {
     const trimmed = newName.trim();

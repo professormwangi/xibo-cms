@@ -33,13 +33,13 @@ import { RetireLayoutModal } from './RetireLayoutModal';
 import SaveAsTemplateModal from './SaveAsTemplateModal';
 
 import FolderActionModals from '@/components/ui/FolderActionModals';
-import ScheduleEventModal from '@/components/ui/modals/ScheduleEventModal';
-import { EventTypeId } from '@/types/event';
 import type { PublishValue } from '@/components/ui/forms/PublishDateSelect';
 import MoveModal from '@/components/ui/modals/MoveModal';
 import PublishModal from '@/components/ui/modals/PublishModal';
+import ScheduleEventModal from '@/components/ui/modals/ScheduleEventModal';
 import ShareModal from '@/components/ui/modals/ShareModal';
 import type { useFolderActions } from '@/hooks/useFolderActions';
+import { EventTypeId } from '@/types/event';
 import type { Layout } from '@/types/layout';
 import type { User } from '@/types/user';
 

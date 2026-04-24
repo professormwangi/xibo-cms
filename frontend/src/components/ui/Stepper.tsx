@@ -22,7 +22,7 @@
 import { Check } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 
-export type StepStatus = 'completed' | 'active' | 'inactive';
+export type StepStatus = 'completed' | 'active' | 'reachable' | 'inactive';
 
 export interface StepDefinition {
   label: string;
@@ -33,6 +33,7 @@ interface StepperProps {
   steps: StepDefinition[];
   activeIndex?: number;
   className?: string;
+  onStepClick?: (index: number) => void;
 }
 
 function StepCircle({ step, index }: { step: StepDefinition; index: number }) {
@@ -52,8 +53,16 @@ function StepCircle({ step, index }: { step: StepDefinition; index: number }) {
     );
   }
 
+  if (step.status === 'reachable') {
+    return (
+      <div className="flex size-8 items-center justify-center rounded-full border-2 border-teal-500 bg-white text-teal-600 text-sm font-semibold mx-2">
+        {index + 1}
+      </div>
+    );
+  }
+
   return (
-    <div className="flex size-8 items-center justify-center rounded-full border-2 border-gray-300 bg-white text-gray-400 text-sm font-semibold">
+    <div className="flex size-8 items-center justify-center rounded-full bg-gray-100 text-gray-400 text-sm font-semibold mx-2">
       {index + 1}
     </div>
   );
@@ -62,16 +71,19 @@ function StepCircle({ step, index }: { step: StepDefinition; index: number }) {
 function getLineColor(leftStatus: StepStatus, rightStatus: StepStatus): string {
   if (leftStatus === 'completed' && rightStatus === 'completed') return 'bg-teal-500';
   if (leftStatus === 'completed' && rightStatus === 'active') return 'bg-xibo-blue-600';
+  if (leftStatus === 'completed' && rightStatus === 'reachable') return 'bg-teal-500';
   return 'bg-gray-200';
 }
 
-export default function Stepper({ steps, activeIndex, className }: StepperProps) {
+export default function Stepper({ steps, activeIndex, className, onStepClick }: StepperProps) {
   return (
     <div className={twMerge('flex', className)}>
       {steps.map((step, index) => {
         const isActive = index === activeIndex;
         const isFirst = index === 0;
         const isLast = index === steps.length - 1;
+        const isClickable =
+          !!onStepClick && (step.status === 'completed' || step.status === 'reachable');
 
         const prevStep = steps[index - 1];
         const nextStep = steps[index + 1];
@@ -83,7 +95,14 @@ export default function Stepper({ steps, activeIndex, className }: StepperProps)
           !isLast && nextStep ? getLineColor(step.status, nextStep.status) : '';
 
         return (
-          <div key={index} className="flex-1 flex flex-col items-center gap-1.5">
+          <div
+            key={index}
+            className={twMerge(
+              'flex-1 flex flex-col items-center gap-1.5',
+              isClickable && 'cursor-pointer',
+            )}
+            onClick={isClickable ? () => onStepClick(index) : undefined}
+          >
             <div className="flex items-center w-full">
               {isFirst ? (
                 <div className="flex-1" />
@@ -101,7 +120,9 @@ export default function Stepper({ steps, activeIndex, className }: StepperProps)
               className={twMerge(
                 'text-sm whitespace-nowrap',
                 (step.status === 'active' || isActive) && 'font-semibold text-gray-900',
-                step.status === 'completed' && !isActive && 'text-gray-600',
+                step.status === 'completed' && 'text-gray-600',
+                step.status === 'reachable' && 'text-teal-600',
+                isClickable && 'hover:underline',
                 step.status === 'inactive' && 'text-gray-400',
               )}
             >

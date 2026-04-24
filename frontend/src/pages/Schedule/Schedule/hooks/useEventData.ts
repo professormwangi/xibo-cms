@@ -68,15 +68,11 @@ export const useEventData = ({
       const request: FetchEventRequest = {
         start: startOffset,
         length: pagination.pageSize,
-        name: filter || undefined,
+        name: filter || advancedFilters.name || undefined,
         eventTypeId: advancedFilters.eventTypeId ?? undefined,
         campaignId: advancedFilters.layoutCampaignId ?? advancedFilters.campaignId ?? undefined,
-        displaySpecificGroupIds:
-          advancedFilters.displaySpecificGroupId != null
-            ? [advancedFilters.displaySpecificGroupId]
-            : undefined,
-        displayGroupIds:
-          advancedFilters.displayGroupId != null ? [advancedFilters.displayGroupId] : undefined,
+        displaySpecificGroupIds: advancedFilters.displaySpecificGroupIds ?? undefined,
+        displayGroupIds: advancedFilters.displayGroupIds ?? undefined,
         geoAware: advancedFilters.geoAware ?? undefined,
         recurring: advancedFilters.recurring ?? undefined,
         directSchedule: advancedFilters.directSchedule ?? undefined,

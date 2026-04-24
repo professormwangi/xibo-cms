@@ -51,6 +51,7 @@ interface SelectDropdownProps {
   searchable?: boolean;
   searchPlaceholder?: string;
   onSelect: (value: string) => void;
+  onSearch?: (term: string) => void;
   helpText?: string;
   addLeftLabel?: boolean;
   leftLabelContent?: ReactNode;
@@ -73,6 +74,7 @@ export default function SelectDropdown({
   searchable,
   searchPlaceholder,
   onSelect,
+  onSearch,
   helpText,
   addLeftLabel,
   leftLabelContent,
@@ -97,11 +99,12 @@ export default function SelectDropdown({
     setIsOpen(open);
     if (!open) {
       setSearchTerm('');
+      onSearch?.('');
     }
   };
 
   const visibleOptions =
-    searchable && searchTerm
+    !onSearch && searchable && searchTerm
       ? options.filter((o) => o.label.toLowerCase().includes(searchTerm.toLowerCase()))
       : options;
 
@@ -205,7 +208,10 @@ export default function SelectDropdown({
                   className="flex-1 w-full text-sm outline-none border-none bg-transparent"
                   placeholder={searchPlaceholder ?? t('Search…')}
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    onSearch?.(e.target.value);
+                  }}
                   onClick={(e) => e.stopPropagation()}
                 />
               </div>
