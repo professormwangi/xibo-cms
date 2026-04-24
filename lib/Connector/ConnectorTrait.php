@@ -104,6 +104,11 @@ trait ConnectorTrait
         return in_array($setting, $this->providerSettings);
     }
 
+    public function getProviderSettings(): array
+    {
+        return $this->providerSettings;
+    }
+
     /**
      * @param $setting
      * @param null $default

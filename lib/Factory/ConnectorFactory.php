@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright (C) 2024 Xibo Signage Ltd
+ * Copyright (C) 2026 Xibo Signage Ltd
  *
  * Xibo - Digital Signage - https://xibosignage.com
  *
@@ -38,40 +38,13 @@ use Xibo\Support\Exception\NotFoundException;
  */
 class ConnectorFactory extends BaseFactory
 {
-    /** @var \Stash\Interfaces\PoolInterface */
-    private $pool;
-
-    /** @var \Xibo\Service\ConfigServiceInterface */
-    private $config;
-
-    /** @var \Xibo\Service\JwtServiceInterface */
-    private $jwtService;
-
-    /** @var \Psr\Container\ContainerInterface */
-    private $container;
-
-    /** @var \Xibo\Service\PlayerActionServiceInterface */
-    private $playerActionService;
-
-    /**
-     * @param \Stash\Interfaces\PoolInterface $pool
-     * @param \Xibo\Service\ConfigServiceInterface $config
-     * @param \Xibo\Service\JwtServiceInterface $jwtService
-     * @param \Psr\Container\ContainerInterface $container
-     * @param \Xibo\Service\PlayerActionServiceInterface $playerActionService
-     */
     public function __construct(
-        PoolInterface $pool,
-        ConfigServiceInterface $config,
-        JwtServiceInterface $jwtService,
-        PlayerActionServiceInterface $playerActionService,
-        ContainerInterface $container
+        private readonly PoolInterface $pool,
+        private readonly ConfigServiceInterface $config,
+        private readonly JwtServiceInterface $jwtService,
+        private readonly PlayerActionServiceInterface $playerActionService,
+        private readonly ContainerInterface $container,
     ) {
-        $this->pool = $pool;
-        $this->config = $config;
-        $this->jwtService = $jwtService;
-        $this->playerActionService = $playerActionService;
-        $this->container = $container;
     }
 
     /**
@@ -90,7 +63,9 @@ class ConnectorFactory extends BaseFactory
         $out = new $connector->className();
 
         if (!$out instanceof ConnectorInterface) {
-            throw new GeneralException('Connector ' . $connector->className . ' must implement ConnectorInterface');
+            throw new GeneralException(
+                'Connector ' . $connector->className . ' must implement ConnectorInterface'
+            );
         }
 
         return $out
@@ -139,10 +114,12 @@ class ConnectorFactory extends BaseFactory
         return $this->query(['className' => $className]);
     }
 
+
     /**
-     * @return Connector[]
+     * @param array $filterBy
+     * @return array
      */
-    public function query($filterBy): array
+    public function query(array $filterBy = []): array
     {
         $sanitizedFilter = $this->getSanitizer($filterBy);
         $entries = [];
