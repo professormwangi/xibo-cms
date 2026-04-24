@@ -112,7 +112,6 @@ export default function FilterInputs<T>({
       `}
     >
       <div className="relative bg-slate-50 p-5 pt-7 grid grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] gap-4 items-end">
-        {' '}
         {onReset && (
           <Button
             variant="tertiary"

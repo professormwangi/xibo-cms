@@ -19,10 +19,12 @@
  * along with Xibo.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ArrowLeft, ArrowRight, CalendarClock, Minus, Plus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarClock, Minus, Plus, Tablet } from 'lucide-react';
 import { useEffect, useState, useTransition } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import Button from '../Button';
+import GeoScheduleMap from '../GeoScheduleMap';
 import InfoBanner from '../InfoBanner';
 import { notify } from '../Notification';
 import Stepper from '../Stepper';
@@ -34,6 +36,7 @@ import TextInput from '../forms/TextInput';
 
 import Modal, { type ModalAction } from './Modal';
 
+import { useUserContext } from '@/context/UserContext';
 import { DisplayGroupMultiSelect } from '@/pages/Schedule/Schedule/components/DisplayGroupMultiSelect';
 import {
   type DraftCriterion,
@@ -64,12 +67,13 @@ import { getScheduleEventSchema } from '@/schema/scheduleEvent';
 import { fetchCampaigns } from '@/services/campaignApi';
 import { fetchCommands } from '@/services/commandApi';
 import { fetchDaypart } from '@/services/daypartApi';
-import { createEvent, updateEvent } from '@/services/eventApi';
+import { createEvent, fetchEventById, updateEvent } from '@/services/eventApi';
 import { fetchLayouts } from '@/services/layoutsApi';
 import { fetchMedia } from '@/services/mediaApi';
 import { fetchPlaylist } from '@/services/playlistApi';
 import { fetchResolution } from '@/services/resolutionApi';
 import { EventTypeId, type Event } from '@/types/event';
+import { hasFeature } from '@/utils/permissions';
 
 type ScheduleModalMode = 'add' | 'schedule' | 'edit';
 
@@ -95,6 +99,11 @@ export default function ScheduleEventModal({
   event,
 }: ScheduleEventModalProps) {
   const { t } = useTranslation();
+  const { user } = useUserContext();
+
+  const canGeoSchedule = hasFeature(user, 'schedule.geoLocation');
+  const canSetReminders = hasFeature(user, 'schedule.reminders');
+  const canSetCriteria = hasFeature(user, 'schedule.criteria');
 
   const isEditMode = mode === 'edit' && !!event;
   const initialStep = isEditMode ? 0 : contentId ? 1 : 0;
@@ -146,6 +155,7 @@ export default function ScheduleEventModal({
   })();
   const canFinish = (currentStep >= 1 || isEditMode) && hasDisplays;
 
+  const isCommandEvent = draft.eventTypeId === EventTypeId.Command;
   const isAlwaysDaypart = draft.dayPartId === alwaysDayPartId;
   const isCustomDaypart = draft.dayPartId === customDayPartId;
   const isNamedDaypart = draft.dayPartId !== '' && !isAlwaysDaypart && !isCustomDaypart;
@@ -158,6 +168,9 @@ export default function ScheduleEventModal({
   const isStep3Valid = (() => {
     if (isCustomDaypart && draft.useRelativeTime) {
       return draft.relativeHours > 0 || draft.relativeMinutes > 0 || draft.relativeSeconds > 0;
+    }
+    if (isCommandEvent) {
+      return !!draft.fromDt;
     }
     if (isCustomDaypart && !draft.useRelativeTime) {
       return !!draft.fromDt && !!draft.toDt;
@@ -197,6 +210,42 @@ export default function ScheduleEventModal({
     });
   }, [isOpen]);
 
+  // Fetch enriched event details in edit mode — the grid row doesn't carry geoLocation,
+  // mediaId, playlistId, or other fields only returned by GET /schedule/{id}.
+  useEffect(() => {
+    if (!isEditMode || !event || !isOpen) {
+      return;
+    }
+
+    fetchEventById(event.eventId)
+      .then((enriched) => {
+        setDraft(createDraftFromEvent(enriched));
+      })
+      .catch(() => {});
+  }, [isOpen, isEditMode, event]);
+
+  // Fall back to 'general' tab when the currently active tab is no longer visible
+  useEffect(() => {
+    if ((optionalTab === 'repeats' || optionalTab === 'reminder') && !canSetReminders) {
+      setOptionalTab('general');
+    }
+    if (optionalTab === 'geoLocation' && !canGeoSchedule) {
+      setOptionalTab('general');
+    }
+    if (optionalTab === 'criteria' && !canSetCriteria) {
+      setOptionalTab('general');
+    }
+  }, [canGeoSchedule, canSetReminders, canSetCriteria, optionalTab]);
+
+  // Command events are always forced to the Custom daypart (no toDt, no relative time)
+  useEffect(() => {
+    if (isCommandEvent && customDayPartId) {
+      setDraft((prev) =>
+        prev.dayPartId === customDayPartId ? prev : { ...prev, dayPartId: customDayPartId },
+      );
+    }
+  }, [isCommandEvent, customDayPartId]);
+
   useEffect(() => {
     if (!isOpen || !draft.eventTypeId) {
       setContentOptions([]);
@@ -231,7 +280,11 @@ export default function ScheduleEventModal({
           }
           case EventTypeId.Media: {
             const { rows } = await fetchMedia({ start: 0, length: 100 });
-            setContentOptions(rows.map((m) => ({ value: String(m.mediaId), label: m.name })));
+            setContentOptions(
+              rows
+                .filter((m) => m.released === 1)
+                .map((m) => ({ value: String(m.mediaId), label: m.name })),
+            );
             break;
           }
           case EventTypeId.Playlist: {
@@ -340,6 +393,13 @@ export default function ScheduleEventModal({
 
       setFormErrors(mapped);
 
+      const allMessages = Object.values(mapped).filter(Boolean) as string[];
+      setApiError(
+        allMessages.length > 0
+          ? allMessages.join(' · ')
+          : t('Please correct the errors in the form before saving.'),
+      );
+
       if (
         mapped.eventTypeId ||
         mapped.campaignId ||
@@ -406,7 +466,8 @@ export default function ScheduleEventModal({
               })()
             : {
                 ...(isCustomDaypart && draft.fromDt ? { fromDt: draft.fromDt } : {}),
-                ...(isCustomDaypart && draft.toDt ? { toDt: draft.toDt } : {}),
+                // Command events don't require or send toDt
+                ...(!isCommandEvent && isCustomDaypart && draft.toDt ? { toDt: draft.toDt } : {}),
               }),
 
           ...(!isCustomDaypart && !isAlwaysDaypart && draft.fromDt ? { fromDt: draft.fromDt } : {}),
@@ -444,6 +505,7 @@ export default function ScheduleEventModal({
             : {}),
 
           isGeoAware: draft.isGeoAware ? 1 : 0,
+          ...(draft.isGeoAware && draft.geoLocation ? { geoLocation: draft.geoLocation } : {}),
 
           ...(filteredCriteria.length > 0 ? { criteria: filteredCriteria } : {}),
         };
@@ -511,7 +573,7 @@ export default function ScheduleEventModal({
 
     if (canFinish) {
       result.push({
-        label: isPending ? t('Saving...') : t('Finish'),
+        label: isPending ? t('Saving...') : isEditMode ? t('Save') : t('Finish'),
         onClick: handleFinish,
         variant: 'primary',
         disabled: isPending || !isStepValid,
@@ -561,7 +623,7 @@ export default function ScheduleEventModal({
         </div>
 
         {/* Info Banners */}
-        {currentStep === 1 && hasDisplays && showDisplayBanner && (
+        {currentStep === 1 && !isEditMode && hasDisplays && showDisplayBanner && (
           <div className="shrink-0 mx-8 mt-4">
             <InfoBanner type="success">
               {t("You're all set! Click")} <strong>{t('Finish')}</strong>{' '}
@@ -570,7 +632,7 @@ export default function ScheduleEventModal({
             </InfoBanner>
           </div>
         )}
-        {currentStep === 2 && (
+        {currentStep === 2 && !isEditMode && (
           <div className="shrink-0 mx-8 mt-4">
             <InfoBanner type="success">
               {t('Click')} <strong>{t('Finish')}</strong> {t('to complete schedule or click')}{' '}
@@ -578,7 +640,7 @@ export default function ScheduleEventModal({
             </InfoBanner>
           </div>
         )}
-        {currentStep === 3 && (
+        {currentStep === 3 && !isEditMode && (
           <div className="shrink-0 mx-8 mt-4">
             <InfoBanner type="success">
               {t("You're all set! Simply click")} <strong>{t('Finish')}</strong>{' '}
@@ -588,7 +650,7 @@ export default function ScheduleEventModal({
         )}
 
         {/* Step Content */}
-        <div className="flex-1 overflow-y-auto px-8 py-4">
+        <div className="flex flex-col flex-1 overflow-y-auto px-8 py-4">
           {/* ── Step 1: Content ── */}
           {currentStep === 0 && (
             <div className="space-y-4">
@@ -627,6 +689,28 @@ export default function ScheduleEventModal({
                   }
                 />
               )}
+
+              {!!draft.campaignId &&
+                [
+                  EventTypeId.Layout,
+                  EventTypeId.Overlay,
+                  EventTypeId.Interrupt,
+                  EventTypeId.Campaign,
+                ].includes(draft.eventTypeId!) && (
+                  <div className="inline-flex flex-col gap-1 items-start">
+                    <Button
+                      variant="secondary"
+                      className="mb-0"
+                      rightIcon={Tablet}
+                      onClick={() => window.open(`/campaign/${draft.campaignId}/preview`, '_blank')}
+                    >
+                      {t('Preview')}
+                    </Button>
+                    <span className="text-xs text-gray-400 mt-1 whitespace-pre-line">
+                      {t('Preview your selection in a new tab')}
+                    </span>
+                  </div>
+                )}
             </div>
           )}
 
@@ -665,17 +749,20 @@ export default function ScheduleEventModal({
           {/* ── Step 3: Time ── */}
           {currentStep === 2 && (
             <div className="space-y-4">
-              <SelectDropdown
-                label={t('Dayparting')}
-                value={draft.dayPartId}
-                options={daypartOptions}
-                onSelect={(value) => updateDraft('dayPartId', value)}
-                placeholder={t('Select Daypart')}
-                helpText={t(
-                  'Select how this event recurs. Choose Always for continuous playback or Custom to define specific times.',
-                )}
-                error={formErrors.dayPartId}
-              />
+              {/* Command events are always forced to Custom daypart — hide the selector */}
+              {!isCommandEvent && (
+                <SelectDropdown
+                  label={t('Dayparting')}
+                  value={draft.dayPartId}
+                  options={daypartOptions}
+                  onSelect={(value) => updateDraft('dayPartId', value)}
+                  placeholder={t('Select Daypart')}
+                  helpText={t(
+                    'Select how this event recurs. Choose Always for continuous playback or Custom to define specific times.',
+                  )}
+                  error={formErrors.dayPartId}
+                />
+              )}
 
               {/* Named daypart: Start Time only (date, no time picker) */}
               {isNamedDaypart && (
@@ -688,8 +775,18 @@ export default function ScheduleEventModal({
                 />
               )}
 
-              {/* Custom daypart: Start + End Time (or relative time) */}
-              {isCustomDaypart && !draft.useRelativeTime && (
+              {/* Custom daypart + Command: Start Time only (no End Time) */}
+              {isCommandEvent && !draft.useRelativeTime && (
+                <DatePickerInput
+                  label={t('Start Time')}
+                  value={draft.fromDt}
+                  onChange={(value) => updateDraft('fromDt', value)}
+                  error={formErrors.fromDt}
+                />
+              )}
+
+              {/* Custom daypart (non-Command): Start + End Time (or relative time) */}
+              {isCustomDaypart && !isCommandEvent && !draft.useRelativeTime && (
                 <div className="grid grid-cols-2 gap-4">
                   <DatePickerInput
                     label={t('Start Time')}
@@ -706,7 +803,7 @@ export default function ScheduleEventModal({
                 </div>
               )}
 
-              {/* Use Relative Time — only for Custom daypart */}
+              {/* Use Relative Time — for Custom daypart (Command included) */}
               {isCustomDaypart && (
                 <div className="bg-gray-50 py-3">
                   <Checkbox
@@ -774,9 +871,9 @@ export default function ScheduleEventModal({
 
           {/* ── Step 4: Optional ── */}
           {currentStep === 3 && (
-            <div className="space-y-4">
+            <div className="flex flex-col flex-1 space-y-4">
               {/* Sub-tabs */}
-              <nav className="flex border-b border-gray-200">
+              <nav className="flex shrink-0 border-b border-gray-200">
                 <button
                   type="button"
                   className={getTabClass('general')}
@@ -784,7 +881,7 @@ export default function ScheduleEventModal({
                 >
                   {t('General')}
                 </button>
-                {showRepeatReminder && (
+                {showRepeatReminder && canSetReminders && (
                   <>
                     <button
                       type="button"
@@ -802,22 +899,25 @@ export default function ScheduleEventModal({
                     </button>
                   </>
                 )}
-                <button
-                  type="button"
-                  className={getTabClass('geoLocation')}
-                  onClick={() => setOptionalTab('geoLocation')}
-                >
-                  {t('Geo Location')}
-                </button>
-                <button
-                  type="button"
-                  className={getTabClass('criteria')}
-                  onClick={() => setOptionalTab('criteria')}
-                >
-                  {t('Criteria')}
-                </button>
+                {canGeoSchedule && (
+                  <button
+                    type="button"
+                    className={getTabClass('geoLocation')}
+                    onClick={() => setOptionalTab('geoLocation')}
+                  >
+                    {t('Geo Location')}
+                  </button>
+                )}
+                {canSetCriteria && (
+                  <button
+                    type="button"
+                    className={getTabClass('criteria')}
+                    onClick={() => setOptionalTab('criteria')}
+                  >
+                    {t('Criteria')}
+                  </button>
+                )}
               </nav>
-
               {/* General tab */}
               {optionalTab === 'general' && (
                 <div className="space-y-4">
@@ -1060,22 +1160,37 @@ export default function ScheduleEventModal({
                   ))}
                 </div>
               )}
-
               {/* Geo Location tab */}
               {optionalTab === 'geoLocation' && (
-                <div className="space-y-4">
+                <div className="flex flex-col flex-1 space-y-4">
                   <Checkbox
                     id="isGeoAware"
                     checked={draft.isGeoAware}
-                    onChange={(e) => updateDraft('isGeoAware', e.target.checked)}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      if (!checked) {
+                        updateDraft('geoLocation', '');
+                      }
+                      updateDraft('isGeoAware', checked);
+                    }}
                     title={t('Geo Schedule')}
                     label={t(
                       'Should this event be location aware? Enable this checkbox and select an area by drawing a polygon or rectangle layer on the map below.',
                     )}
                   />
+                  {draft.isGeoAware && (
+                    <div className="flex flex-col flex-1 w-full">
+                      <GeoScheduleMap
+                        key={isEditMode ? String(event.eventId) : 'new'}
+                        geoLocation={draft.geoLocation ?? ''}
+                        onChange={(json) => updateDraft('geoLocation', json)}
+                        defaultLat={Number(user?.settings?.DEFAULT_LAT ?? 51.5)}
+                        defaultLng={Number(user?.settings?.DEFAULT_LONG ?? -0.104)}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
-
               {/* Criteria tab */}
               {optionalTab === 'criteria' && (
                 <div className="space-y-4 p-5 bg-slate-50">

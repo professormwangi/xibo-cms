@@ -70,6 +70,11 @@ export async function fetchEvent(
   };
 }
 
+export async function fetchEventById(eventId: number): Promise<Event> {
+  const response = await http.get<Event>(`/schedule/${eventId}`);
+  return response.data;
+}
+
 export async function deleteEvent(eventId: number | string): Promise<void> {
   await http.delete(`/schedule/${eventId}`, {
     headers: { 'X-Requested-With': 'XMLHttpRequest' },

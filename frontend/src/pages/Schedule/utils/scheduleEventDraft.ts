@@ -73,6 +73,7 @@ export interface ScheduleEventDraft {
   recurrenceRange: string;
   reminders: DraftReminder[];
   isGeoAware: boolean;
+  geoLocation: string;
   criteria: DraftCriterion[];
 }
 
@@ -185,7 +186,7 @@ export function createInitialDraft(
     dayPartId: '',
     fromDt: '',
     toDt: '',
-    useRelativeTime: true,
+    useRelativeTime: false,
     relativeHours: 0,
     relativeMinutes: 0,
     relativeSeconds: 0,
@@ -204,6 +205,7 @@ export function createInitialDraft(
     recurrenceRange: '',
     reminders: [{ ...EMPTY_REMINDER }],
     isGeoAware: false,
+    geoLocation: '',
     criteria: [{ ...EMPTY_CRITERION }],
   };
 }
@@ -255,6 +257,7 @@ export function createDraftFromEvent(scheduleEvent: Event): ScheduleEventDraft {
           }))
         : [{ ...EMPTY_REMINDER }],
     isGeoAware: scheduleEvent.isGeoAware === 1,
+    geoLocation: scheduleEvent.geoLocation ?? '',
     criteria:
       scheduleEvent.criteria.length > 0
         ? scheduleEvent.criteria.map((c) => ({

@@ -171,7 +171,7 @@ export default function SelectDropdown({
         <span
           className={twMerge(
             'py-2 px-3 flex-1 text-sm truncate min-w-0',
-            isLoading ? 'text-gray-400 italic' : 'text-gray-800 capitalize',
+            isLoading ? 'text-gray-400 italic' : 'text-gray-800',
           )}
         >
           {isLoading ? t('Loading...') : selectedLabel || t(placeholder)}

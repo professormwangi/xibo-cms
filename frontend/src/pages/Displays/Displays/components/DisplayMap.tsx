@@ -32,8 +32,8 @@ import { useTranslation } from 'react-i18next';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import 'react-leaflet-cluster/dist/assets/MarkerCluster.Default.css';
+import '@/styles/leaflet-overrides.css';
 import 'react-leaflet-cluster/dist/assets/MarkerCluster.css';
-import './DisplayMap.css';
 
 import type { DisplayFilterInput } from '../DisplaysConfig';
 
