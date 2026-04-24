@@ -151,7 +151,7 @@
             cache: false,
             dataType:"json",
             success: function(xhr, textStatus, error) {
-              $.each(xhr.data, function(index, element) {
+              $.each(xhr, function(index, element) {
                 if (element.isHidden) {
                   return;
                 }
