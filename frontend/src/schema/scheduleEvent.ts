@@ -35,6 +35,14 @@ export const getScheduleEventSchema = (t: TFunction) =>
       campaignId: z.number().nullable(),
       commandId: z.number().nullable(),
       playlistId: z.number().nullable(),
+      syncGroupId: z.number().nullable(),
+      dataSetId: z.number().nullable(),
+      dataSetParams: z.string().optional(),
+      syncDisplayLayouts: z.record(z.string(), z.number().nullable()),
+      actionType: z.string(),
+      actionTriggerCode: z.string(),
+      actionLayoutCode: z.string(),
+      shareOfVoice: z.number().min(0).max(3600),
 
       displaySpecificGroupIds: z.array(z.number()),
       displayGroupIds: z.array(z.number()),
@@ -84,7 +92,11 @@ export const getScheduleEventSchema = (t: TFunction) =>
       ),
     })
     .superRefine((data, ctx) => {
-      if (data.displaySpecificGroupIds.length === 0 && data.displayGroupIds.length === 0) {
+      if (
+        data.displaySpecificGroupIds.length === 0 &&
+        data.displayGroupIds.length === 0 &&
+        data.eventTypeId !== EventTypeId.Sync
+      ) {
         ctx.addIssue({
           path: ['displayGroupIds'],
           code: z.ZodIssueCode.custom,
@@ -128,6 +140,61 @@ export const getScheduleEventSchema = (t: TFunction) =>
           path: ['playlistId'],
           code: z.ZodIssueCode.custom,
           message: t('Please select a Playlist'),
+        });
+      }
+
+      if (data.eventTypeId === EventTypeId.Sync && !data.syncGroupId) {
+        ctx.addIssue({
+          path: ['syncGroupId'],
+          code: z.ZodIssueCode.custom,
+          message: t('Please select a Sync Group'),
+        });
+      }
+
+      if (data.eventTypeId === EventTypeId.DataConnector && !data.dataSetId) {
+        ctx.addIssue({
+          path: ['dataSetId'],
+          code: z.ZodIssueCode.custom,
+          message: t('Please select a DataSet'),
+        });
+      }
+
+      if (data.eventTypeId === EventTypeId.Action) {
+        if (!data.actionType) {
+          ctx.addIssue({
+            path: ['actionType'],
+            code: z.ZodIssueCode.custom,
+            message: t('Please select an Action Type'),
+          });
+        }
+        if (!data.actionTriggerCode) {
+          ctx.addIssue({
+            path: ['actionTriggerCode'],
+            code: z.ZodIssueCode.custom,
+            message: t('Please enter a Trigger Code'),
+          });
+        }
+        if (data.actionType === 'navLayout' && !data.actionLayoutCode) {
+          ctx.addIssue({
+            path: ['actionLayoutCode'],
+            code: z.ZodIssueCode.custom,
+            message: t('Please select a Layout Code'),
+          });
+        }
+        if (data.actionType === 'command' && !data.commandId) {
+          ctx.addIssue({
+            path: ['commandId'],
+            code: z.ZodIssueCode.custom,
+            message: t('Please select a Command'),
+          });
+        }
+      }
+
+      if (data.eventTypeId === EventTypeId.Interrupt && data.shareOfVoice <= 0) {
+        ctx.addIssue({
+          path: ['shareOfVoice'],
+          code: z.ZodIssueCode.custom,
+          message: t('Share of Voice must be between 1 and 3600'),
         });
       }
 

@@ -294,3 +294,17 @@ export async function saveLayoutAsTemplate(
 
   return result;
 }
+
+export interface LayoutCode {
+  code: string;
+  layout: string;
+  CampaignID: number;
+}
+
+export async function fetchLayoutCodes(code?: string): Promise<LayoutCode[]> {
+  const response = await http.get('/layout/codes', {
+    params: code ? { code } : undefined,
+  });
+
+  return response.data;
+}

@@ -49,6 +49,14 @@ export interface ScheduleEventDraft {
   campaignId: number | null;
   commandId: number | null;
   playlistId: number | null;
+  syncGroupId: number | null;
+  dataSetId: number | null;
+  dataSetParams: string;
+  syncDisplayLayouts: Record<number, number | null>;
+  actionType: string;
+  actionTriggerCode: string;
+  actionLayoutCode: string;
+  shareOfVoice: number;
   displaySpecificGroupIds: number[];
   displayGroupIds: number[];
   dayPartId: string;
@@ -81,10 +89,14 @@ export type OptionalTab = 'general' | 'repeats' | 'reminder' | 'geoLocation' | '
 
 export type ScheduleFormErrors = Partial<
   Record<
-    Exclude<keyof ScheduleEventDraft, 'displaySpecificGroupIds' | 'displayGroupIds'>,
+    Exclude<
+      keyof ScheduleEventDraft,
+      'displaySpecificGroupIds' | 'displayGroupIds' | 'syncDisplayLayouts'
+    >,
     string
   > & {
     displayGroupIds: string;
+    syncDisplayLayouts: string;
   }
 >;
 
@@ -104,6 +116,8 @@ export const EVENT_TYPE_OPTIONS: SelectOption[] = [
   { value: String(EventTypeId.Action), label: 'Action' },
   { value: String(EventTypeId.Media), label: 'Media' },
   { value: String(EventTypeId.Playlist), label: 'Playlist' },
+  { value: String(EventTypeId.Sync), label: 'Synchronised Event' },
+  { value: String(EventTypeId.DataConnector), label: 'Data Connector' },
 ];
 
 export const CONDITION_OPTIONS: SelectOption[] = [
@@ -181,6 +195,14 @@ export function createInitialDraft(
         : null,
     commandId: eventTypeId === EventTypeId.Command ? (contentId ?? null) : null,
     playlistId: eventTypeId === EventTypeId.Playlist ? (contentId ?? null) : null,
+    syncGroupId: eventTypeId === EventTypeId.Sync ? (contentId ?? null) : null,
+    dataSetId: eventTypeId === EventTypeId.DataConnector ? (contentId ?? null) : null,
+    dataSetParams: '',
+    syncDisplayLayouts: {},
+    actionType: '',
+    actionTriggerCode: '',
+    actionLayoutCode: '',
+    shareOfVoice: 0,
     displaySpecificGroupIds: [],
     displayGroupIds: [],
     dayPartId: '',
@@ -217,6 +239,14 @@ export function createDraftFromEvent(scheduleEvent: Event): ScheduleEventDraft {
     campaignId: scheduleEvent.fullScreenCampaignId ?? scheduleEvent.campaignId ?? null,
     commandId: scheduleEvent.commandId ?? null,
     playlistId: scheduleEvent.playlistId ?? null,
+    syncGroupId: scheduleEvent.syncGroupId ?? null,
+    dataSetId: scheduleEvent.dataSetId ?? null,
+    dataSetParams: scheduleEvent.dataSetParams ?? '',
+    syncDisplayLayouts: {},
+    actionType: scheduleEvent.actionType ?? '',
+    actionTriggerCode: scheduleEvent.actionTriggerCode ?? '',
+    actionLayoutCode: scheduleEvent.actionLayoutCode ?? '',
+    shareOfVoice: scheduleEvent.shareOfVoice ?? 0,
     displaySpecificGroupIds: scheduleEvent.displayGroups
       .filter((dg) => dg.isDisplaySpecific === 1)
       .map((dg) => dg.displayGroupId),
@@ -284,6 +314,10 @@ export function getContentFieldConfig(eventTypeId: EventTypeId | null, t: (key: 
       return { label: t('Media'), placeholder: t('Select Media') };
     case EventTypeId.Playlist:
       return { label: t('Playlist'), placeholder: t('Select Playlist') };
+    case EventTypeId.Sync:
+      return { label: t('Sync Group'), placeholder: t('Select Sync Group') };
+    case EventTypeId.DataConnector:
+      return { label: t('DataSet'), placeholder: t('Select DataSet') };
     default:
       return null;
   }
@@ -312,6 +346,10 @@ export function getContentHelpText(
       return t(
         'Select a Playlist to use. The selected playlist will be shown full screen for this event.',
       );
+    case EventTypeId.Sync:
+      return t('Select a Sync Group to schedule content across synchronised displays.');
+    case EventTypeId.DataConnector:
+      return t('Select a Real-Time DataSet to connect to this schedule.');
     default:
       return '';
   }
@@ -338,6 +376,10 @@ export function getContentValue(draft: ScheduleEventDraft): string {
     case EventTypeId.Interrupt:
     case EventTypeId.Campaign:
       return draft.campaignId ? String(draft.campaignId) : '';
+    case EventTypeId.Sync:
+      return draft.syncGroupId ? String(draft.syncGroupId) : '';
+    case EventTypeId.DataConnector:
+      return draft.dataSetId ? String(draft.dataSetId) : '';
     default:
       return '';
   }
@@ -350,14 +392,24 @@ export function getPrefilledOption(contentId?: number, contentName?: string): Se
   return null;
 }
 
+export const SYNC_STEP_LABELS = ['Content', 'Time', 'Optional'] as const;
+
+export function getStepLabels(eventTypeId: EventTypeId | null): readonly string[] {
+  if (eventTypeId === EventTypeId.Sync) {
+    return SYNC_STEP_LABELS;
+  }
+  return STEP_LABELS;
+}
+
 export function buildSteps(
   currentStep: number,
   maxReachedStep: number,
   t: (key: string) => string,
+  stepLabels: readonly string[] = STEP_LABELS,
 ) {
-  const isLastStep = currentStep === STEP_LABELS.length - 1;
+  const isLastStep = currentStep === stepLabels.length - 1;
 
-  return STEP_LABELS.map((label, index) => ({
+  return stepLabels.map((label, index) => ({
     label: t(label),
     status:
       isLastStep || index < currentStep

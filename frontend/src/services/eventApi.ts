@@ -123,6 +123,13 @@ export interface CreateEventRequest {
   commandId?: number;
   mediaId?: number;
   playlistId?: number;
+  syncGroupId?: number;
+  dataSetId?: number;
+  dataSetParams?: string;
+  syncDisplayLayouts?: Record<number, number | null>;
+  actionType?: string;
+  actionTriggerCode?: string;
+  actionLayoutCode?: string;
 
   fromDt?: string;
   toDt?: string;
@@ -177,6 +184,17 @@ export async function createEvent(data: CreateEventRequest): Promise<Event> {
   if (data.commandId) params.append('commandId', String(data.commandId));
   if (data.mediaId) params.append('mediaId', String(data.mediaId));
   if (data.playlistId) params.append('playlistId', String(data.playlistId));
+  if (data.syncGroupId) params.append('syncGroupId', String(data.syncGroupId));
+  if (data.dataSetId) params.append('dataSetId', String(data.dataSetId));
+  if (data.dataSetParams) params.append('dataSetParams', data.dataSetParams);
+  if (data.syncDisplayLayouts) {
+    Object.entries(data.syncDisplayLayouts).forEach(([displayId, layoutId]) => {
+      if (layoutId) params.append(`layoutId_${displayId}`, String(layoutId));
+    });
+  }
+  if (data.actionType) params.append('actionType', data.actionType);
+  if (data.actionTriggerCode) params.append('actionTriggerCode', data.actionTriggerCode);
+  if (data.actionLayoutCode) params.append('actionLayoutCode', data.actionLayoutCode);
 
   if (data.fromDt) params.append('fromDt', formatDateTime(new Date(data.fromDt)));
   if (data.toDt) params.append('toDt', formatDateTime(new Date(data.toDt)));
@@ -261,6 +279,17 @@ export async function updateEvent(
   if (data.commandId) params.append('commandId', String(data.commandId));
   if (data.mediaId) params.append('mediaId', String(data.mediaId));
   if (data.playlistId) params.append('playlistId', String(data.playlistId));
+  if (data.syncGroupId) params.append('syncGroupId', String(data.syncGroupId));
+  if (data.dataSetId) params.append('dataSetId', String(data.dataSetId));
+  if (data.dataSetParams) params.append('dataSetParams', data.dataSetParams);
+  if (data.syncDisplayLayouts) {
+    Object.entries(data.syncDisplayLayouts).forEach(([displayId, layoutId]) => {
+      if (layoutId) params.append(`layoutId_${displayId}`, String(layoutId));
+    });
+  }
+  if (data.actionType) params.append('actionType', data.actionType);
+  if (data.actionTriggerCode) params.append('actionTriggerCode', data.actionTriggerCode);
+  if (data.actionLayoutCode) params.append('actionLayoutCode', data.actionLayoutCode);
 
   if (data.fromDt) params.append('fromDt', formatDateTime(new Date(data.fromDt)));
   if (data.toDt) params.append('toDt', formatDateTime(new Date(data.toDt)));

@@ -45,7 +45,6 @@ import {
   type OptionalTab,
   type ScheduleFormErrors,
   type SelectOption,
-  STEP_LABELS,
   EVENT_TYPE_OPTIONS,
   CONDITION_OPTIONS,
   CRITERIA_TYPE_OPTIONS,
@@ -61,17 +60,20 @@ import {
   getContentHelpText,
   getContentValue,
   getPrefilledOption,
+  getStepLabels,
   buildSteps,
 } from '@/pages/Schedule/utils/scheduleEventDraft';
 import { getScheduleEventSchema } from '@/schema/scheduleEvent';
 import { fetchCampaigns } from '@/services/campaignApi';
 import { fetchCommands } from '@/services/commandApi';
+import { fetchDataset } from '@/services/datasetApi';
 import { fetchDaypart } from '@/services/daypartApi';
 import { createEvent, fetchEventById, updateEvent } from '@/services/eventApi';
-import { fetchLayouts } from '@/services/layoutsApi';
+import { fetchLayouts, fetchLayoutCodes } from '@/services/layoutsApi';
 import { fetchMedia } from '@/services/mediaApi';
 import { fetchPlaylist } from '@/services/playlistApi';
 import { fetchResolution } from '@/services/resolutionApi';
+import { fetchSyncGroups } from '@/services/syncGroupApi';
 import { EventTypeId, type Event } from '@/types/event';
 import { hasFeature } from '@/utils/permissions';
 
@@ -106,8 +108,11 @@ export default function ScheduleEventModal({
   const canSetCriteria = hasFeature(user, 'schedule.criteria');
 
   const isEditMode = mode === 'edit' && !!event;
+  const isSyncEvent =
+    (prefilledEventTypeId ?? (isEditMode ? event?.eventTypeId : null)) === EventTypeId.Sync;
+  const initialStepLabels = getStepLabels(isSyncEvent ? EventTypeId.Sync : null);
   const initialStep = isEditMode ? 0 : contentId ? 1 : 0;
-  const initialMaxStep = isEditMode ? STEP_LABELS.length - 1 : initialStep;
+  const initialMaxStep = isEditMode ? initialStepLabels.length - 1 : initialStep;
   const [currentStep, setCurrentStep] = useState(initialStep);
   const [maxReachedStep, setMaxReachedStep] = useState(initialMaxStep);
 
@@ -126,6 +131,9 @@ export default function ScheduleEventModal({
   const [daypartOptions, setDaypartOptions] = useState<SelectOption[]>([]);
   const [resolutionOptions, setResolutionOptions] = useState<SelectOption[]>([]);
 
+  const [layoutCodeOptions, setLayoutCodeOptions] = useState<SelectOption[]>([]);
+  const [commandOptions, setCommandOptions] = useState<SelectOption[]>([]);
+
   const [alwaysDayPartId, setAlwaysDayPartId] = useState<string>('');
   const [customDayPartId, setCustomDayPartId] = useState<string>('');
 
@@ -133,9 +141,23 @@ export default function ScheduleEventModal({
   const [apiError, setApiError] = useState<string | undefined>();
   const [formErrors, setFormErrors] = useState<ScheduleFormErrors>({});
 
-  const steps = buildSteps(currentStep, maxReachedStep, t);
+  const isMediaType = draft.eventTypeId === EventTypeId.Media;
+  const isPlaylistType = draft.eventTypeId === EventTypeId.Playlist;
+  const isCommandType = draft.eventTypeId === EventTypeId.Command;
+  const isActionType = draft.eventTypeId === EventTypeId.Action;
+  const isInterruptType = draft.eventTypeId === EventTypeId.Interrupt;
+  const isSyncType = draft.eventTypeId === EventTypeId.Sync;
+  const isDataConnectorType = draft.eventTypeId === EventTypeId.DataConnector;
+  const stepLabels = getStepLabels(draft.eventTypeId);
+  const steps = buildSteps(currentStep, maxReachedStep, t, stepLabels);
   const isFirstStep = currentStep === 0;
-  const isLastStep = currentStep === STEP_LABELS.length - 1;
+  const isLastStep = currentStep === stepLabels.length - 1;
+
+  // Step index mapping: Sync skips Displays step
+  const displayStepIndex = isSyncType ? -1 : 1;
+  const timeStepIndex = isSyncType ? 1 : 2;
+  const optionalStepIndex = isSyncType ? 2 : 3;
+
   const hasDisplays = draft.displaySpecificGroupIds.length > 0 || draft.displayGroupIds.length > 0;
   const hasContent = (() => {
     if (!draft.eventTypeId) return false;
@@ -151,21 +173,25 @@ export default function ScheduleEventModal({
     if (draft.eventTypeId === EventTypeId.Command) return !!draft.commandId;
     if (draft.eventTypeId === EventTypeId.Media) return !!(draft.mediaId || draft.campaignId);
     if (draft.eventTypeId === EventTypeId.Playlist) return !!(draft.playlistId || draft.campaignId);
+    if (draft.eventTypeId === EventTypeId.Sync) return !!draft.syncGroupId;
+    if (draft.eventTypeId === EventTypeId.DataConnector) return !!draft.dataSetId;
+    if (draft.eventTypeId === EventTypeId.Action) {
+      if (!draft.actionType || !draft.actionTriggerCode) return false;
+      if (draft.actionType === 'navLayout') return !!draft.actionLayoutCode;
+      if (draft.actionType === 'command') return !!draft.commandId;
+      return false;
+    }
     return true;
   })();
-  const canFinish = (currentStep >= 1 || isEditMode) && hasDisplays;
+  const canFinish = (currentStep >= 1 || isEditMode) && (hasDisplays || isSyncType);
 
   const isCommandEvent = draft.eventTypeId === EventTypeId.Command;
   const isAlwaysDaypart = draft.dayPartId === alwaysDayPartId;
   const isCustomDaypart = draft.dayPartId === customDayPartId;
   const isNamedDaypart = draft.dayPartId !== '' && !isAlwaysDaypart && !isCustomDaypart;
   const showRepeatReminder = !isAlwaysDaypart && draft.dayPartId !== '';
-  const isScheduleMode = mode === 'schedule';
-  const isFullScreenEvent =
-    draft.eventTypeId === EventTypeId.Media || draft.eventTypeId === EventTypeId.Playlist;
-  const showFullScreenFields = isScheduleMode || (isEditMode && isFullScreenEvent);
 
-  const isStep3Valid = (() => {
+  const isTimeStepValid = (() => {
     if (isCustomDaypart && draft.useRelativeTime) {
       return draft.relativeHours > 0 || draft.relativeMinutes > 0 || draft.relativeSeconds > 0;
     }
@@ -180,10 +206,10 @@ export default function ScheduleEventModal({
   const isStepValid =
     currentStep === 0
       ? hasContent
-      : currentStep === 1
+      : currentStep === displayStepIndex
         ? hasDisplays
-        : currentStep === 2
-          ? isStep3Valid
+        : currentStep === timeStepIndex
+          ? isTimeStepValid
           : true;
 
   useEffect(() => {
@@ -292,6 +318,20 @@ export default function ScheduleEventModal({
             setContentOptions(rows.map((p) => ({ value: String(p.playlistId), label: p.name })));
             break;
           }
+          case EventTypeId.Sync: {
+            const { rows } = await fetchSyncGroups({ start: 0, length: 100 });
+            setContentOptions(
+              rows.map((sg) => ({ value: String(sg.syncGroupId), label: sg.name })),
+            );
+            break;
+          }
+          case EventTypeId.DataConnector: {
+            const { rows } = await fetchDataset({ start: 0, length: 100, isRealTime: 1 });
+            setContentOptions(
+              rows.map((ds) => ({ value: String(ds.dataSetId), label: ds.dataSet })),
+            );
+            break;
+          }
           default:
             setContentOptions([]);
         }
@@ -301,6 +341,23 @@ export default function ScheduleEventModal({
     };
 
     load();
+  }, [isOpen, draft.eventTypeId]);
+
+  useEffect(() => {
+    if (!isOpen || draft.eventTypeId !== EventTypeId.Action) {
+      setLayoutCodeOptions([]);
+      setCommandOptions([]);
+      return;
+    }
+
+    Promise.all([fetchLayoutCodes(), fetchCommands({ start: 0, length: 100 })]).then(
+      ([codes, { rows: commands }]) => {
+        setLayoutCodeOptions(
+          codes.map((c) => ({ value: c.code, label: `${c.layout} (${c.code})` })),
+        );
+        setCommandOptions(commands.map((c) => ({ value: String(c.commandId), label: c.command })));
+      },
+    );
   }, [isOpen, draft.eventTypeId]);
 
   const updateDraft = <K extends keyof ScheduleEventDraft>(
@@ -405,19 +462,34 @@ export default function ScheduleEventModal({
         mapped.campaignId ||
         mapped.commandId ||
         mapped.mediaId ||
-        mapped.playlistId
+        mapped.playlistId ||
+        mapped.syncGroupId ||
+        mapped.syncDisplayLayouts ||
+        mapped.dataSetId ||
+        mapped.actionType ||
+        mapped.actionTriggerCode ||
+        mapped.actionLayoutCode
       ) {
         setCurrentStep(0);
-      } else if (mapped.displayGroupIds) {
-        setCurrentStep(1);
-      } else if (mapped.dayPartId || mapped.relativeHours || mapped.toDt || mapped.fromDt) {
-        setCurrentStep(2);
+      } else if (mapped.displayGroupIds && !isSyncType) {
+        setCurrentStep(displayStepIndex);
+      } else if (
+        mapped.dayPartId ||
+        mapped.relativeHours ||
+        mapped.toDt ||
+        mapped.fromDt ||
+        mapped.shareOfVoice
+      ) {
+        setCurrentStep(timeStepIndex);
       }
       return;
     }
 
     const eventTypeId = draft.eventTypeId!;
-    const displayGroupIds = [...draft.displaySpecificGroupIds, ...draft.displayGroupIds];
+    const displayGroupIds =
+      eventTypeId === EventTypeId.Sync
+        ? []
+        : [...draft.displaySpecificGroupIds, ...draft.displayGroupIds];
 
     startTransition(async () => {
       try {
@@ -453,6 +525,33 @@ export default function ScheduleEventModal({
             : {}),
           ...(eventTypeId === EventTypeId.Command && draft.commandId
             ? { commandId: draft.commandId }
+            : {}),
+          ...(eventTypeId === EventTypeId.Sync && draft.syncGroupId
+            ? {
+                syncGroupId: draft.syncGroupId,
+                syncDisplayLayouts: draft.syncDisplayLayouts,
+              }
+            : {}),
+          ...(eventTypeId === EventTypeId.DataConnector && draft.dataSetId
+            ? {
+                dataSetId: draft.dataSetId,
+                ...(draft.dataSetParams ? { dataSetParams: draft.dataSetParams } : {}),
+              }
+            : {}),
+          ...(eventTypeId === EventTypeId.Action
+            ? {
+                actionType: draft.actionType,
+                actionTriggerCode: draft.actionTriggerCode,
+                ...(draft.actionType === 'navLayout'
+                  ? { actionLayoutCode: draft.actionLayoutCode }
+                  : {}),
+                ...(draft.actionType === 'command' && draft.commandId
+                  ? { commandId: draft.commandId }
+                  : {}),
+              }
+            : {}),
+          ...(eventTypeId === EventTypeId.Interrupt && draft.shareOfVoice > 0
+            ? { shareOfVoice: draft.shareOfVoice }
             : {}),
 
           ...(isCustomDaypart && draft.useRelativeTime
@@ -623,7 +722,7 @@ export default function ScheduleEventModal({
         </div>
 
         {/* Info Banners */}
-        {currentStep === 1 && !isEditMode && hasDisplays && showDisplayBanner && (
+        {currentStep === displayStepIndex && hasDisplays && showDisplayBanner && (
           <div className="shrink-0 mx-8 mt-4">
             <InfoBanner type="success">
               {t("You're all set! Click")} <strong>{t('Finish')}</strong>{' '}
@@ -632,7 +731,7 @@ export default function ScheduleEventModal({
             </InfoBanner>
           </div>
         )}
-        {currentStep === 2 && !isEditMode && (
+        {currentStep === timeStepIndex && (
           <div className="shrink-0 mx-8 mt-4">
             <InfoBanner type="success">
               {t('Click')} <strong>{t('Finish')}</strong> {t('to complete schedule or click')}{' '}
@@ -640,7 +739,7 @@ export default function ScheduleEventModal({
             </InfoBanner>
           </div>
         )}
-        {currentStep === 3 && !isEditMode && (
+        {currentStep === optionalStepIndex && (
           <div className="shrink-0 mx-8 mt-4">
             <InfoBanner type="success">
               {t("You're all set! Simply click")} <strong>{t('Finish')}</strong>{' '}
@@ -651,14 +750,33 @@ export default function ScheduleEventModal({
 
         {/* Step Content */}
         <div className="flex flex-col flex-1 overflow-y-auto px-8 py-4">
-          {/* ── Step 1: Content ── */}
+          {/* Step 1: Content */}
           {currentStep === 0 && (
             <div className="space-y-4">
               <SelectDropdown
                 label={t('Event Type')}
                 value={draft.eventTypeId ? String(draft.eventTypeId) : ''}
                 options={EVENT_TYPE_OPTIONS}
-                onSelect={(value) => updateDraft('eventTypeId', Number(value) as EventTypeId)}
+                onSelect={(value) => {
+                  const newType = Number(value) as EventTypeId;
+                  setDraft((prev) => ({
+                    ...prev,
+                    eventTypeId: newType,
+                    campaignId: null,
+                    commandId: null,
+                    mediaId: null,
+                    playlistId: null,
+                    syncGroupId: null,
+                    dataSetId: null,
+                    dataSetParams: '',
+                    syncDisplayLayouts: {},
+                    actionType: '',
+                    actionTriggerCode: '',
+                    actionLayoutCode: '',
+                    shareOfVoice: 0,
+                  }));
+                  setContentOptions([]);
+                }}
                 placeholder={t('Select Event Type')}
                 error={formErrors.eventTypeId}
               />
@@ -675,6 +793,9 @@ export default function ScheduleEventModal({
                       updateDraft('playlistId', Number(value));
                     else if (typeId === EventTypeId.Command)
                       updateDraft('commandId', Number(value));
+                    else if (typeId === EventTypeId.Sync) updateDraft('syncGroupId', Number(value));
+                    else if (typeId === EventTypeId.DataConnector)
+                      updateDraft('dataSetId', Number(value));
                     else updateDraft('campaignId', Number(value));
                   }}
                   placeholder={contentField.placeholder}
@@ -685,7 +806,9 @@ export default function ScheduleEventModal({
                     formErrors.campaignId ||
                     formErrors.commandId ||
                     formErrors.mediaId ||
-                    formErrors.playlistId
+                    formErrors.playlistId ||
+                    formErrors.syncGroupId ||
+                    formErrors.dataSetId
                   }
                 />
               )}
@@ -711,11 +834,78 @@ export default function ScheduleEventModal({
                     </span>
                   </div>
                 )}
+
+              {/* TODO: Sync per-display layout selection — deferred to next sprint */}
+
+              {/* Data Connector: Parameters field */}
+              {isDataConnectorType && draft.dataSetId && (
+                <TextInput
+                  name="dataSetParams"
+                  label={t('Parameters')}
+                  value={draft.dataSetParams}
+                  placeholder={t('Enter Parameters')}
+                  onChange={(value) => updateDraft('dataSetParams', value)}
+                  helpText={t(
+                    'Optionally provide any parameters to be used by the Data Connector.',
+                  )}
+                />
+              )}
+
+              {/* Action: Action Type, Trigger Code, Layout Code / Command */}
+              {isActionType && (
+                <>
+                  <SelectDropdown
+                    label={t('Action Type')}
+                    value={draft.actionType}
+                    options={[
+                      { value: 'navLayout', label: t('Navigate to Layout') },
+                      { value: 'command', label: t('Command') },
+                    ]}
+                    onSelect={(value) => updateDraft('actionType', value)}
+                    placeholder={t('Select Action Type')}
+                    error={formErrors.actionType}
+                  />
+                  <TextInput
+                    name="actionTriggerCode"
+                    label={t('Trigger Code')}
+                    value={draft.actionTriggerCode}
+                    placeholder={t('Enter Trigger Code')}
+                    onChange={(value) => updateDraft('actionTriggerCode', value)}
+                    helpText={t('Web hook trigger code for this Action')}
+                    error={formErrors.actionTriggerCode}
+                  />
+                  {draft.actionType === 'navLayout' && (
+                    <SelectDropdown
+                      label={t('Layout Code')}
+                      value={draft.actionLayoutCode}
+                      options={layoutCodeOptions}
+                      onSelect={(value) => updateDraft('actionLayoutCode', value)}
+                      placeholder={t('Select Layout Code')}
+                      helpText={t(
+                        'Please select the Code identifier for the Layout that Player should navigate to when this Action is triggered.',
+                      )}
+                      searchable
+                      error={formErrors.actionLayoutCode}
+                    />
+                  )}
+                  {draft.actionType === 'command' && (
+                    <SelectDropdown
+                      label={t('Command')}
+                      value={draft.commandId ? String(draft.commandId) : ''}
+                      options={commandOptions}
+                      onSelect={(value) => updateDraft('commandId', Number(value))}
+                      placeholder={t('Select Command')}
+                      searchable
+                      error={formErrors.commandId}
+                    />
+                  )}
+                </>
+              )}
             </div>
           )}
 
-          {/* ── Step 2: Displays ── */}
-          {currentStep === 1 && (
+          {/* Step 2: Displays */}
+          {currentStep === displayStepIndex && (
             <div className="space-y-4">
               <div className="flex flex-col gap-1 w-full">
                 <label className="text-sm font-semibold text-gray-500 leading-5">
@@ -746,8 +936,8 @@ export default function ScheduleEventModal({
             </div>
           )}
 
-          {/* ── Step 3: Time ── */}
-          {currentStep === 2 && (
+          {/* Step: Time */}
+          {currentStep === timeStepIndex && (
             <div className="space-y-4">
               {/* Command events are always forced to Custom daypart — hide the selector */}
               {!isCommandEvent && (
@@ -762,6 +952,33 @@ export default function ScheduleEventModal({
                   )}
                   error={formErrors.dayPartId}
                 />
+              )}
+
+              {/* Interrupt: Share of Voice */}
+              {isInterruptType && (
+                <div className="grid grid-cols-2 gap-4">
+                  <NumberInput
+                    name="shareOfVoice"
+                    label={t('Share of Voice')}
+                    value={draft.shareOfVoice}
+                    onChange={(num) => updateDraft('shareOfVoice', num)}
+                    helpText={t(
+                      'The amount of time this Layout should be shown, in seconds per hour.',
+                    )}
+                    error={formErrors.shareOfVoice}
+                  />
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm font-semibold text-gray-500">
+                      {t('As a percentage')}
+                    </label>
+                    <input
+                      type="text"
+                      readOnly
+                      value={((draft.shareOfVoice / 3600) * 100).toFixed(2)}
+                      className="h-11.25 rounded-lg border border-gray-200 px-3 text-sm bg-gray-50 text-gray-500"
+                    />
+                  </div>
+                </div>
               )}
 
               {/* Named daypart: Start Time only (date, no time picker) */}
@@ -869,8 +1086,8 @@ export default function ScheduleEventModal({
             </div>
           )}
 
-          {/* ── Step 4: Optional ── */}
-          {currentStep === 3 && (
+          {/* Step: Optional */}
+          {currentStep === optionalStepIndex && (
             <div className="flex flex-col flex-1 space-y-4">
               {/* Sub-tabs */}
               <nav className="flex shrink-0 border-b border-gray-200">
@@ -929,17 +1146,21 @@ export default function ScheduleEventModal({
                     onChange={(value) => updateDraft('name', value)}
                     helpText={t('Optional Name for this Event (1-50 characters)')}
                   />
-                  {showFullScreenFields && (
+                  {/* Duration in loop: Media only */}
+                  {isMediaType && (
+                    <NumberInput
+                      name="layoutDuration"
+                      label={t('Duration in loop')}
+                      value={draft.layoutDuration}
+                      onChange={(num) => updateDraft('layoutDuration', num)}
+                      helpText={t(
+                        'Set how long this item should be shown each time it appears in the schedule. Leave blank to use the Media Duration set in the Library.',
+                      )}
+                    />
+                  )}
+                  {/* Resolution + Background Colour: Media and Playlist */}
+                  {(isMediaType || isPlaylistType) && (
                     <>
-                      <NumberInput
-                        name="layoutDuration"
-                        label={t('Duration in loop')}
-                        value={draft.layoutDuration}
-                        onChange={(num) => updateDraft('layoutDuration', num)}
-                        helpText={t(
-                          'Set how long this item should be shown each time it appears in the schedule. Leave blank to use the Media Duration set in the Library.',
-                        )}
-                      />
                       <SelectDropdown
                         label={t('Resolution')}
                         value={draft.resolutionId}
@@ -977,15 +1198,18 @@ export default function ScheduleEventModal({
                       </div>
                     </>
                   )}
-                  <NumberInput
-                    name="displayOrder"
-                    label={t('Display Order')}
-                    value={draft.displayOrder}
-                    onChange={(num) => updateDraft('displayOrder', num)}
-                    helpText={t(
-                      'Please select the order this event should appear in relation to others when there is more than one event scheduled.',
-                    )}
-                  />
+                  {/* Display Order: hidden for Action */}
+                  {!isActionType && (
+                    <NumberInput
+                      name="displayOrder"
+                      label={t('Display Order')}
+                      value={draft.displayOrder}
+                      onChange={(num) => updateDraft('displayOrder', num)}
+                      helpText={t(
+                        'Please select the order this event should appear in relation to others when there is more than one event scheduled.',
+                      )}
+                    />
+                  )}
                   <NumberInput
                     name="isPriority"
                     label={t('Priority')}
@@ -996,16 +1220,19 @@ export default function ScheduleEventModal({
                       'Sets the event priority - events with the highest priority play in preference to lower priority events.',
                     )}
                   />
-                  <NumberInput
-                    name="maxPlaysPerHour"
-                    label={t('Maximum plays/hour')}
-                    value={draft.maxPlaysPerHour}
-                    placeholder={t('Select')}
-                    onChange={(num) => updateDraft('maxPlaysPerHour', num)}
-                    helpText={t(
-                      'Limit the number of times this event will play per hour on each display. For unlimited plays set to 0.',
-                    )}
-                  />
+                  {/* Max plays/hour: hidden for Command, Action, DataConnector */}
+                  {!(isCommandType || isActionType || isDataConnectorType) && (
+                    <NumberInput
+                      name="maxPlaysPerHour"
+                      label={t('Maximum plays/hour')}
+                      value={draft.maxPlaysPerHour}
+                      placeholder={t('Select')}
+                      onChange={(num) => updateDraft('maxPlaysPerHour', num)}
+                      helpText={t(
+                        'Limit the number of times this event will play per hour on each display. For unlimited plays set to 0.',
+                      )}
+                    />
+                  )}
                   <Checkbox
                     id="syncTimezone"
                     checked={draft.syncTimezone}
