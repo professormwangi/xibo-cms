@@ -77,7 +77,9 @@ function MapControls() {
     const iconProps = { size: 16, strokeWidth: 1.5 };
 
     addBtn('leaflet-control-zoom-in', <Plus {...iconProps} />, t('Zoom in'), () => map.zoomIn());
-    addBtn('leaflet-control-zoom-out', <Minus {...iconProps} />, t('Zoom out'), () => map.zoomOut());
+    addBtn('leaflet-control-zoom-out', <Minus {...iconProps} />, t('Zoom out'), () =>
+      map.zoomOut(),
+    );
 
     const CustomZoomControl = L.Control.extend({
       options: { position: 'topleft' },
